@@ -1,5 +1,20 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
+// ── Check if a key is a secret service_role key ─────────────────────────────
+export function isServiceRoleKey(key: string): boolean {
+  if (!key) return false;
+  try {
+    const parts = key.trim().split('.');
+    if (parts.length >= 2) {
+      const payload = JSON.parse(atob(parts[1]));
+      return payload?.role === 'service_role';
+    }
+  } catch {
+    // ignore
+  }
+  return false;
+}
+
 // ── Check if pairing configuration exists in URL or LocalStorage ────────────────
 function getStoredCloudConfig(): { url: string; key: string } {
   if (typeof window === 'undefined') return { url: '', key: '' };
@@ -10,7 +25,7 @@ function getStoredCloudConfig(): { url: string; key: string } {
     const syncToken = params.get('sync_config');
     if (syncToken) {
       const decoded = JSON.parse(decodeURIComponent(escape(atob(syncToken))));
-      if (decoded.url && decoded.key) {
+      if (decoded.url && decoded.key && !isServiceRoleKey(decoded.key)) {
         localStorage.setItem('my-money-cloud-url', decoded.url);
         localStorage.setItem('my-money-cloud-key', decoded.key);
         // Clean URL parameter without reloading
@@ -33,7 +48,7 @@ function getStoredCloudConfig(): { url: string; key: string } {
         };
         localStorage.setItem('my-money-local-session', JSON.stringify(sessionRecord));
       }
-      if (decoded.cloud?.url && decoded.cloud?.key) {
+      if (decoded.cloud?.url && decoded.cloud?.key && !isServiceRoleKey(decoded.cloud.key)) {
         localStorage.setItem('my-money-cloud-url', decoded.cloud.url);
         localStorage.setItem('my-money-cloud-key', decoded.cloud.key);
       }
@@ -48,7 +63,7 @@ function getStoredCloudConfig(): { url: string; key: string } {
       }
       const cleanUrl = window.location.pathname;
       window.history.replaceState({}, document.title, cleanUrl);
-      if (decoded.cloud?.url && decoded.cloud?.key) {
+      if (decoded.cloud?.url && decoded.cloud?.key && !isServiceRoleKey(decoded.cloud.key)) {
         return { url: decoded.cloud.url, key: decoded.cloud.key };
       }
     }
@@ -61,6 +76,12 @@ function getStoredCloudConfig(): { url: string; key: string } {
     const savedUrl = localStorage.getItem('my-money-cloud-url');
     const savedKey = localStorage.getItem('my-money-cloud-key');
     if (savedUrl && savedKey) {
+      if (isServiceRoleKey(savedKey)) {
+        console.warn('Detected forbidden service_role secret key in browser. Removing.');
+        localStorage.removeItem('my-money-cloud-key');
+        localStorage.removeItem('my-money-cloud-url');
+        return { url: '', key: '' };
+      }
       return { url: savedUrl, key: savedKey };
     }
   } catch {
@@ -90,7 +111,8 @@ export const isSupabaseConfigured = (): boolean => {
     !!activeSupabaseAnonKey &&
     activeSupabaseUrl.startsWith('http') &&
     activeSupabaseUrl !== 'your-supabase-project-url' &&
-    activeSupabaseAnonKey !== 'your-supabase-anon-key'
+    activeSupabaseAnonKey !== 'your-supabase-anon-key' &&
+    !isServiceRoleKey(activeSupabaseAnonKey)
   );
 };
 
@@ -98,28 +120,47 @@ export const isSupabaseConfigured = (): boolean => {
 const fallbackUrl = 'https://placeholder.supabase.co';
 const fallbackKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.dummy';
 
-export const supabase: SupabaseClient = createClient(
-  isSupabaseConfigured() ? activeSupabaseUrl : fallbackUrl,
-  isSupabaseConfigured() ? activeSupabaseAnonKey : fallbackKey,
-  {
-    auth: {
-      autoRefreshToken: true,
-      persistSession: true,
-      detectSessionInUrl: true,
-    },
-    realtime: {
-      params: {
-        eventsPerSecond: 10,
+function initSupabaseClient(): SupabaseClient {
+  const configured = isSupabaseConfigured();
+  try {
+    return createClient(
+      configured ? activeSupabaseUrl : fallbackUrl,
+      configured ? activeSupabaseAnonKey : fallbackKey,
+      {
+        auth: {
+          autoRefreshToken: true,
+          persistSession: true,
+          detectSessionInUrl: true,
+        },
+        realtime: {
+          params: {
+            eventsPerSecond: 10,
+          },
+        },
+      }
+    );
+  } catch (err) {
+    console.warn('Failed to initialize Supabase client:', err);
+    return createClient(fallbackUrl, fallbackKey, {
+      auth: {
+        persistSession: false,
       },
-    },
+    });
   }
-);
+}
+
+export const supabase: SupabaseClient = initSupabaseClient();
 
 /**
  * Save user-entered cloud database configuration and re-pair devices.
  */
 export function saveSupabaseCloudConfig(url: string, key: string) {
   if (!url || !key) throw new Error('URL and Key are required');
+  if (isServiceRoleKey(key)) {
+    throw new Error(
+      "আপনি ভুলবশত 'service_role' (Secret) কি দিয়েছেন! অনুগ্রহ করে 'anon' (Public) কি কপি করে দিন।"
+    );
+  }
   localStorage.setItem('my-money-cloud-url', url.trim());
   localStorage.setItem('my-money-cloud-key', key.trim());
   window.location.reload();
