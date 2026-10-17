@@ -128,6 +128,16 @@ export function WeeklyEmailModal({
                   className="bg-white text-xs dark:bg-gray-800"
                 />
               </div>
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-teal-800 dark:text-teal-300">
+                <span>বাছাই করুন:</span>
+                <button
+                  type="button"
+                  onClick={() => setRecipientEmail('abidasset@gmail.com')}
+                  className="rounded bg-teal-200/70 px-1.5 py-0.5 font-medium hover:bg-teal-300 dark:bg-teal-900/60 dark:hover:bg-teal-800 transition-colors"
+                >
+                  abidasset@gmail.com (রেজিস্টার্ড ওনার)
+                </button>
+              </div>
             </div>
             <div className="flex items-center gap-1.5 rounded-lg bg-teal-100 px-3 py-1.5 text-[11px] font-semibold text-teal-800 dark:bg-teal-900/60 dark:text-teal-200">
               <ShieldCheck className="h-4 w-4 text-teal-600 dark:text-teal-400" />

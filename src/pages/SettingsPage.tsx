@@ -150,6 +150,7 @@ export default function SettingsPage() {
   // Weekly Digest & Server Test Email
   const [weeklyModalOpen, setWeeklyModalOpen] = useState(false);
   const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
+  const [testRecipient, setTestRecipient] = useState('abidhossain52003@gmail.com');
   const [emailConfig, setEmailConfig] = useState<{
     configured: boolean;
     fromEmail: string;
@@ -181,6 +182,9 @@ export default function SettingsPage() {
           configuredRecipient: data.configuredRecipient || 'abidhossain52003@gmail.com',
           provider: data.provider || 'Resend',
         });
+        if (data.configuredRecipient) {
+          setTestRecipient(data.configuredRecipient);
+        }
       }
     } catch {
       // Fallback
@@ -192,7 +196,7 @@ export default function SettingsPage() {
   }, []);
 
   const handleSendTestEmail = async (overrideRecipient?: string) => {
-    const targetRecipient = overrideRecipient || emailConfig.configuredRecipient;
+    const targetRecipient = (overrideRecipient || testRecipient || emailConfig.configuredRecipient).trim();
     try {
       setIsSendingTestEmail(true);
       setTestEmailStatus(null);
@@ -281,6 +285,10 @@ export default function SettingsPage() {
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!currentPassword) {
+      toast.error(language === 'bn' ? 'বর্তমান পাসওয়ার্ড প্রদান করুন' : 'Current password is required');
+      return;
+    }
     if (!newPassword || newPassword.length < 4) {
       toast.error('নতুন পাসওয়ার্ড কমপক্ষে ৪ অক্ষরের হতে হবে');
       return;
@@ -292,7 +300,7 @@ export default function SettingsPage() {
 
     try {
       setIsChangingPassword(true);
-      await updatePassword(newPassword, currentPassword || '11223344');
+      await updatePassword(newPassword, currentPassword);
       toast.success('পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে');
       setCurrentPassword('');
       setNewPassword('');
@@ -585,27 +593,64 @@ export default function SettingsPage() {
           </div>
         )}
 
-        <div className="mt-4 flex flex-wrap items-center gap-2.5">
-          <Button
-            type="button"
-            variant="primary"
-            size="sm"
-            loading={isSendingTestEmail}
-            onClick={() => handleSendTestEmail()}
-            leftIcon={<Send className="h-4 w-4" />}
-          >
-            {language === 'bn' ? 'টেস্ট ইমেইল পাঠান (Send Test Email)' : 'Send Test Email'}
-          </Button>
+        {/* Test Email Recipient Control */}
+        <div className="mt-4 rounded-xl border border-gray-200/80 bg-gray-50/70 p-3.5 dark:border-gray-700/60 dark:bg-gray-800/40">
+          <label className="block text-xs font-semibold text-gray-800 dark:text-gray-200">
+            {language === 'bn' ? 'টেস্ট ইমেইল প্রাপক' : 'Test Email Recipient'}
+          </label>
+          <div className="mt-2 flex flex-col sm:flex-row gap-2">
+            <input
+              type="email"
+              value={testRecipient}
+              onChange={(e) => setTestRecipient(e.target.value)}
+              placeholder="e.g. abidasset@gmail.com"
+              className="flex-1 rounded-xl border border-gray-300 bg-white px-3.5 py-2 text-xs text-gray-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+            />
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              loading={isSendingTestEmail}
+              onClick={() => handleSendTestEmail(testRecipient)}
+              leftIcon={<Send className="h-3.5 w-3.5" />}
+            >
+              {language === 'bn' ? 'টেস্ট ইমেইল পাঠান' : 'Send Test Email'}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setWeeklyModalOpen(true)}
+              leftIcon={<Mail className="h-3.5 w-3.5 text-teal-600" />}
+            >
+              {language === 'bn' ? 'সাপ্তাহিক রিপোর্ট প্রিভিউ' : 'Preview Digest'}
+            </Button>
+          </div>
 
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setWeeklyModalOpen(true)}
-            leftIcon={<Mail className="h-4 w-4 text-teal-600" />}
-          >
-            {language === 'bn' ? 'সাপ্তাহিক রিপোর্ট প্রিভিউ ও প্রেরণ' : 'Preview & Send Digest'}
-          </Button>
+          <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+            <span>{language === 'bn' ? 'দ্রুত টেস্ট করুন:' : 'Quick test:'}</span>
+            <button
+              type="button"
+              onClick={() => {
+                setTestRecipient('abidasset@gmail.com');
+                handleSendTestEmail('abidasset@gmail.com');
+              }}
+              className="inline-flex items-center gap-1 rounded-md bg-teal-100/80 px-2 py-0.5 font-medium text-teal-800 hover:bg-teal-200 dark:bg-teal-950/60 dark:text-teal-300 transition-colors"
+            >
+              <CheckCircle2 className="h-3 w-3 text-teal-600" />
+              abidasset@gmail.com ({language === 'bn' ? 'Resend ওনার - সরাসরি অনুমোদিত' : 'Owner - Direct Delivery'})
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTestRecipient(emailConfig.configuredRecipient);
+                handleSendTestEmail(emailConfig.configuredRecipient);
+              }}
+              className="inline-flex items-center gap-1 rounded-md bg-gray-200/80 px-2 py-0.5 font-medium text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 transition-colors"
+            >
+              {emailConfig.configuredRecipient} ({language === 'bn' ? '.env ফাইল' : '.env'})
+            </button>
+          </div>
         </div>
       </div>
 
@@ -818,9 +863,6 @@ export default function SettingsPage() {
               {language === 'bn' ? 'মাস্টার পাসওয়ার্ড পরিবর্তন' : 'Master Password & Security'}
             </h2>
           </div>
-          <span className="inline-flex items-center rounded-full bg-teal-50 px-2.5 py-0.5 text-[11px] font-semibold text-teal-700 dark:bg-teal-950/60 dark:text-teal-300">
-            {language === 'bn' ? 'ডিফল্ট: 11223344' : 'Default: 11223344'}
-          </span>
         </div>
         <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
           {language === 'bn'
@@ -833,10 +875,9 @@ export default function SettingsPage() {
             <Input
               type="password"
               label={language === 'bn' ? 'বর্তমান পাসওয়ার্ড' : 'Current Password'}
-              placeholder="11223344"
+              placeholder="••••••••"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
-              helperText={language === 'bn' ? 'প্রথমবার হলে: 11223344' : 'Initial: 11223344'}
             />
 
             <Input
