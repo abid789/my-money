@@ -16,6 +16,11 @@ import {
   INITIAL_BUDGETS,
   INITIAL_SAVINGS_GOALS,
   INITIAL_RECURRING,
+  DEMO_SAMPLE_ACCOUNTS,
+  DEMO_SAMPLE_TRANSACTIONS,
+  DEMO_SAMPLE_BUDGETS,
+  DEMO_SAMPLE_SAVINGS_GOALS,
+  DEMO_SAMPLE_RECURRING,
 } from '@/lib/mockData';
 import type {
   Account,
@@ -86,8 +91,10 @@ interface DataContextValue {
   deleteRecurring: (id: string) => Promise<void>;
   markRecurringPaid: (id: string) => Promise<void>;
 
-  // Refresh
+  // Refresh & Utilities
   refreshData: () => Promise<void>;
+  resetToZero: () => Promise<void>;
+  loadDemoData: () => Promise<void>;
 }
 
 // ─── Context ────────────────────────────────────────────────────────────────
@@ -201,6 +208,19 @@ function setLocal<T>(key: string, data: T) {
 
     if (!isSupabaseConfigured()) {
       setError(null);
+
+      // Auto-migrate to zero start: clear out old demo dummy transactions & reset to 0
+      const ZERO_INITIALIZED_KEY = 'my-money-zero-v3';
+      const hasAutoReset = localStorage.getItem(ZERO_INITIALIZED_KEY) === 'true';
+      if (!hasAutoReset) {
+        setLocal('transactions', []);
+        setLocal('accounts', INITIAL_ACCOUNTS);
+        setLocal('budgets', []);
+        setLocal('savings', []);
+        setLocal('recurring', []);
+        localStorage.setItem(ZERO_INITIALIZED_KEY, 'true');
+      }
+
       const accs = getLocal<Account[]>('accounts', INITIAL_ACCOUNTS);
       const cats = getLocal<Category[]>('categories', INITIAL_CATEGORIES);
       const txns = getLocal<Transaction[]>('transactions', INITIAL_TRANSACTIONS);
@@ -1167,6 +1187,41 @@ function setLocal<T>(key: string, data: T) {
   );
 
   // ═══════════════════════════════════════════════════════════════════════
+  // RESET TO ZERO & DEMO DATA HANDLERS
+  // ═══════════════════════════════════════════════════════════════════════
+
+  const resetToZero = useCallback(async () => {
+    const ZERO_INITIALIZED_KEY = 'my-money-zero-v3';
+    setLocal('transactions', []);
+    setLocal('accounts', INITIAL_ACCOUNTS);
+    setLocal('budgets', []);
+    setLocal('savings', []);
+    setLocal('recurring', []);
+    localStorage.setItem(ZERO_INITIALIZED_KEY, 'true');
+
+    setTransactions([]);
+    setAccounts(INITIAL_ACCOUNTS);
+    setBudgets([]);
+    setSavingsGoals([]);
+    setRecurringTransactions([]);
+
+    toast.success('সব হিসেব রিসেট সম্পন্ন! একদম শূন্য (৳০) থেকে শুরু করতে পারেন।');
+  }, []);
+
+  const loadDemoData = useCallback(async () => {
+    const ZERO_INITIALIZED_KEY = 'my-money-zero-v3';
+    setLocal('transactions', DEMO_SAMPLE_TRANSACTIONS);
+    setLocal('accounts', DEMO_SAMPLE_ACCOUNTS);
+    setLocal('budgets', DEMO_SAMPLE_BUDGETS);
+    setLocal('savings', DEMO_SAMPLE_SAVINGS_GOALS);
+    setLocal('recurring', DEMO_SAMPLE_RECURRING);
+    localStorage.setItem(ZERO_INITIALIZED_KEY, 'demo');
+
+    await refreshData();
+    toast.success('নমুনা ডেমো ডেটা লোড করা হয়েছে');
+  }, [refreshData]);
+
+  // ═══════════════════════════════════════════════════════════════════════
   // FINANCIAL SUMMARY (computed from selected month/year)
   // ═══════════════════════════════════════════════════════════════════════
 
@@ -1295,8 +1350,10 @@ function setLocal<T>(key: string, data: T) {
       deleteRecurring,
       markRecurringPaid,
 
-      // Refresh
+      // Refresh & Utilities
       refreshData,
+      resetToZero,
+      loadDemoData,
     }),
     [
       accounts,
@@ -1331,6 +1388,8 @@ function setLocal<T>(key: string, data: T) {
       deleteRecurring,
       markRecurringPaid,
       refreshData,
+      resetToZero,
+      loadDemoData,
     ]
   );
 

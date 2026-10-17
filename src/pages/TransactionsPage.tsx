@@ -1,13 +1,15 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '@/contexts/DataContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { formatCurrency } from '@/lib/utils';
 import type { Transaction, TransactionFilters as FilterType } from '@/types';
 import { TransactionFilters } from '@/components/transactions/TransactionFilters';
 import { TransactionList } from '@/components/transactions/TransactionList';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { PlusCircle, Download, ArrowUpRight, ArrowDownLeft, ArrowUpDown } from 'lucide-react';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { PlusCircle, Download, ArrowUpRight, ArrowDownLeft, ArrowUpDown, RotateCcw } from 'lucide-react';
 import Papa from 'papaparse';
 import { parseISO, isAfter, isBefore, isEqual } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -26,9 +28,24 @@ const defaultFilters: FilterType = {
 };
 
 export default function TransactionsPage() {
-  const { transactions, loading } = useData();
+  const { transactions, loading, resetToZero } = useData();
+  const { language } = useLanguage();
   const navigate = useNavigate();
   const [filters, setFilters] = useState<FilterType>(defaultFilters);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+
+  const handleConfirmReset = async () => {
+    try {
+      setIsResetting(true);
+      await resetToZero();
+      setResetDialogOpen(false);
+    } catch {
+      toast.error('হিসেব রিসেট করতে সমস্যা হয়েছে');
+    } finally {
+      setIsResetting(false);
+    }
+  };
 
   // Filter and sort transactions
   const filteredTransactions = useMemo(() => {
@@ -172,28 +189,41 @@ export default function TransactionsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-2xl">
-            Transactions History
+            {language === 'bn' ? 'লেনদেন ইতিহাস ও তালিকা' : 'Transactions History'}
           </h1>
           <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-            View, search, filter, and organize all your financial records.
+            {language === 'bn'
+              ? 'আপনার সকল আয়, ব্যয় ও ট্রান্সফারের বিবরণ খুঁজুন ও পরিচালনা করুন।'
+              : 'View, search, filter, and organize all your financial records.'}
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {transactions.length > 0 && (
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => setResetDialogOpen(true)}
+              leftIcon={<RotateCcw className="h-4 w-4" />}
+            >
+              {language === 'bn' ? 'সব মুছুন (৳০)' : 'Reset All'}
+            </Button>
+          )}
+
           <Button
             variant="outline"
             size="sm"
             onClick={handleExportCSV}
             leftIcon={<Download className="h-4 w-4" />}
           >
-            Export CSV
+            {language === 'bn' ? 'CSV ডাউনলোড' : 'Export CSV'}
           </Button>
           <Button
             variant="primary"
             onClick={() => navigate('/add-transaction')}
             leftIcon={<PlusCircle className="h-4 w-4" />}
           >
-            Add Transaction
+            {language === 'bn' ? '+ নতুন লেনদেন' : 'Add Transaction'}
           </Button>
         </div>
       </div>
@@ -246,6 +276,21 @@ export default function TransactionsPage() {
       <TransactionList
         transactions={filteredTransactions}
         onAddClick={() => navigate('/add-transaction')}
+      />
+
+      <ConfirmDialog
+        isOpen={resetDialogOpen}
+        onClose={() => setResetDialogOpen(false)}
+        onConfirm={handleConfirmReset}
+        title={language === 'bn' ? 'সব লেনদেন মুছে শূন্য করবেন?' : 'Reset All to ৳0?'}
+        message={
+          language === 'bn'
+            ? 'আপনার সকল পূর্বের লেনদেন মুছে হিসাব শূন্য (৳০) করা হবে। আপনি একদম ফ্রেশভাবে নতুন হিসাব লিখতে পারবেন।'
+            : 'All recorded transactions will be deleted and balances reset to ৳0.'
+        }
+        confirmText={language === 'bn' ? 'হ্যাঁ, সব মুছে শূন্য করুন' : 'Yes, Reset to ৳0'}
+        variant="danger"
+        loading={isResetting}
       />
     </div>
   );

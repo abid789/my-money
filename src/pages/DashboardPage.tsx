@@ -17,7 +17,7 @@ import { format } from 'date-fns';
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const { loading, error, refreshData } = useData();
+  const { loading, error, refreshData, transactions } = useData();
   const { t, language } = useLanguage();
   const navigate = useNavigate();
 
@@ -76,6 +76,41 @@ export default function DashboardPage() {
           >
             Retry
           </button>
+        </div>
+      )}
+
+      {/* Fresh Start Zero-Data Banner */}
+      {transactions.length === 0 && (
+        <div className="relative overflow-hidden rounded-2xl border border-teal-200 bg-gradient-to-r from-teal-50 via-emerald-50 to-cyan-50 p-5 shadow-xs dark:border-teal-900/60 dark:from-teal-950/40 dark:via-emerald-950/30 dark:to-cyan-950/40">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2 text-teal-900 dark:text-teal-200 font-bold text-sm">
+                <span>🎯 {language === 'bn' ? 'সম্পূর্ণ নতুন ও শূন্য (৳০) থেকে শুরু!' : 'Fresh Start with Zero Data!'}</span>
+              </div>
+              <p className="text-xs text-teal-800 dark:text-teal-300">
+                {language === 'bn'
+                  ? 'আপনার ক্যাশ, বিকাশ ও ব্যাংক অ্যাকাউন্ট শূন্য ব্যালেন্সে প্রস্তুত। আপনার ব্যক্তিগত প্রকৃত হিসাব রাখতে প্রথম লেনদেন যোগ করুন।'
+                  : 'Your accounts are initialized with ৳0 balance. Click "+ Add Transaction" to start recording your personal finances.'}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => navigate('/add-transaction')}
+                leftIcon={<PlusCircle className="h-4 w-4" />}
+              >
+                {language === 'bn' ? '+ লেনদেন যোগ করুন' : 'Add Transaction'}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/accounts')}
+              >
+                {language === 'bn' ? 'অ্যাকাউন্টস' : 'Accounts'}
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 

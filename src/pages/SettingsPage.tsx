@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useData } from '@/contexts/DataContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
@@ -14,6 +16,7 @@ import {
   Lock,
   Save,
   Check,
+  RotateCcw,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -40,6 +43,24 @@ export default function SettingsPage() {
   // Delete Account
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+
+  // Reset to Zero
+  const { resetToZero } = useData();
+  const { language } = useLanguage();
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+
+  const handleResetData = async () => {
+    try {
+      setIsResetting(true);
+      await resetToZero();
+      setResetDialogOpen(false);
+    } catch {
+      toast.error('রিসেট করতে সমস্যা হয়েছে');
+    } finally {
+      setIsResetting(false);
+    }
+  };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -253,6 +274,33 @@ export default function SettingsPage() {
         </form>
       </div>
 
+      {/* Data Management: Reset to Zero */}
+      <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-6 dark:border-amber-900/40 dark:bg-amber-950/20">
+        <div className="mb-2 flex items-center gap-2">
+          <RotateCcw className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+          <h2 className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+            {language === 'bn' ? 'সব হিসেব রিসেট করে শূন্য করা' : 'Reset All Records to Zero'}
+          </h2>
+        </div>
+        <p className="text-xs text-amber-800 dark:text-amber-300">
+          {language === 'bn'
+            ? 'পূর্বের সকল ডেমো ও পরীক্ষামূলক লেনদেন মুছে ব্যালেন্স শূন্য (৳০) থেকে শুরু করতে চান? আপনার প্রোফাইল ঠিক থাকবে, শুধু সব লেনদেন মুছে শূন্য হবে।'
+            : 'Clear all past demo/test transactions and reset balances to zero (৳0). Your user account and categories will remain intact.'}
+        </p>
+
+        <div className="mt-4">
+          <Button
+            type="button"
+            variant="danger"
+            size="sm"
+            onClick={() => setResetDialogOpen(true)}
+            leftIcon={<RotateCcw className="h-4 w-4" />}
+          >
+            {language === 'bn' ? 'সব হিসেব মুছে শূন্য (৳০) করুন' : 'Reset to Zero Data'}
+          </Button>
+        </div>
+      </div>
+
       {/* Danger Zone: Account Deletion */}
       <div className="rounded-2xl border border-rose-200 bg-rose-50/50 p-6 dark:border-rose-900/40 dark:bg-rose-950/20">
         <div className="mb-2 flex items-center gap-2">
@@ -276,6 +324,21 @@ export default function SettingsPage() {
           </Button>
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={resetDialogOpen}
+        onClose={() => setResetDialogOpen(false)}
+        onConfirm={handleResetData}
+        title={language === 'bn' ? 'সব হিসেব মুছে শূন্য করবেন?' : 'Reset to Zero (৳0)?'}
+        message={
+          language === 'bn'
+            ? 'আপনার পূর্ববর্তী সকল লেনদেন মুছে ব্যালেন্স শূন্য করা হবে। আপনি একদম নতুনভাবে আপনার নিজের হিসাব রাখা শুরু করতে পারবেন।'
+            : 'All transactions will be cleared and balances reset to zero. You will start completely from scratch.'
+        }
+        confirmText={language === 'bn' ? 'হ্যাঁ, শূন্য থেকে শুরু করব' : 'Yes, Reset to Zero'}
+        variant="danger"
+        loading={isResetting}
+      />
 
       <ConfirmDialog
         isOpen={deleteDialogOpen}
