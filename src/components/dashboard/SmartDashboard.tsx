@@ -8,6 +8,13 @@ import { calculateForecast } from '@/lib/calculations';
 import { BrandBadge, BrandIconBubble } from '@/components/ui/BrandBadge';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { IncomeExpenseChart } from '@/components/dashboard/IncomeExpenseChart';
+import { SummaryCards } from '@/components/dashboard/SummaryCards';
+import { CashFlowOverview } from '@/components/dashboard/CashFlowOverview';
+import { MonthComparisonSection } from '@/components/dashboard/MonthComparisonSection';
+import { SpendingTrendChart } from '@/components/dashboard/SpendingTrendChart';
+import { CategoryBreakdownChart } from '@/components/dashboard/CategoryBreakdownChart';
+import { BudgetUtilizationChart } from '@/components/dashboard/BudgetUtilizationChart';
+import { RecentTransactions } from '@/components/dashboard/RecentTransactions';
 import { Button } from '@/components/ui/Button';
 import {
   Wallet,
@@ -82,18 +89,43 @@ export function SmartDashboard() {
     return financialSummary.totalExpenses / daysPassed;
   }, [financialSummary.totalExpenses, daysPassed]);
 
-  // Active budgets with progress
-  const activeBudgets = useMemo(() => {
-    return budgets.filter((b) => b.is_active !== false).slice(0, 4);
-  }, [budgets]);
-
-  // Recent 6 transactions
-  const recentTxns = useMemo(() => {
-    return [...transactions].slice(0, 6);
-  }, [transactions]);
-
   return (
     <div className="w-full max-w-full min-w-0 overflow-x-hidden space-y-6">
+      {/* Fresh Start Zero-Data Banner */}
+      {transactions.length === 0 && (
+        <div className="relative overflow-hidden rounded-2xl border border-teal-200 bg-gradient-to-r from-teal-50 via-emerald-50 to-cyan-50 p-5 shadow-xs dark:border-teal-900/60 dark:from-teal-950/40 dark:via-emerald-950/30 dark:to-cyan-950/40">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2 text-teal-900 dark:text-teal-200 font-bold text-sm">
+                <span>🎯 {language === 'bn' ? 'সম্পূর্ণ নতুন ও শূন্য (৳০) থেকে শুরু!' : 'Fresh Start with Zero Data!'}</span>
+              </div>
+              <p className="text-xs text-teal-800 dark:text-teal-300">
+                {language === 'bn'
+                  ? 'আপনার ক্যাশ, বিকাশ ও ব্যাংক অ্যাকাউন্ট শূন্য ব্যালেন্সে প্রস্তুত। আপনার ব্যক্তিগত প্রকৃত হিসাব রাখতে প্রথম লেনদেন যোগ করুন।'
+                  : 'Your accounts are initialized with ৳0 balance. Click "+ Add Transaction" to start recording your personal finances.'}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => navigate('/add-transaction')}
+                leftIcon={<PlusCircle className="h-4 w-4" />}
+              >
+                {language === 'bn' ? '+ লেনদেন যোগ করুন' : 'Add Transaction'}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/accounts')}
+              >
+                {language === 'bn' ? 'অ্যাকাউন্টস' : 'Accounts'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ─── 1. Hero Cockpit & Net Balance Card ─────────────────────────────── */}
       <div className="relative overflow-hidden rounded-3xl border border-teal-500/20 bg-gradient-to-br from-teal-900 via-slate-900 to-gray-950 p-6 text-white shadow-xl dark:border-teal-400/20">
         <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
@@ -193,7 +225,10 @@ export function SmartDashboard() {
         </div>
       </div>
 
-      {/* ─── 2. Accounts & Wallets Strip (bKash, Nagad, Bank, Cash, etc.) ──── */}
+      {/* ─── 2. 6 Financial Summary KPI Cards ──────────────────────────────── */}
+      <SummaryCards />
+
+      {/* ─── 3. Accounts & Wallets Strip (bKash, Nagad, Bank, Cash, etc.) ──── */}
       <div>
         <div className="mb-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -329,156 +364,34 @@ export function SmartDashboard() {
         </div>
       </div>
 
-      {/* ─── 4. Main Chart & Budget Cockpit ─────────────────────────────────── */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        {/* Income vs Expenses Chart (Span 2 cols on xl) */}
-        <div className="xl:col-span-2">
+      {/* ─── 5. Cash Flow Overview ────────────────────────────────────────── */}
+      <CashFlowOverview />
+
+      {/* ─── 6. Visualizations Row 1: Income vs Expenses & Month Comparison ── */}
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <div className="w-full min-w-0">
           <IncomeExpenseChart />
         </div>
-
-        {/* Active Budgets Cockpit */}
-        <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-xs dark:border-gray-800 dark:bg-gray-800/90 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Target className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-                <h3 className="text-sm font-bold text-gray-900 dark:text-white">
-                  {language === 'bn' ? 'বাজেট মনিটর' : 'Budget Cockpit'}
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => navigate('/budgets')}
-                className="text-xs font-semibold text-teal-600 hover:underline dark:text-teal-400"
-              >
-                {language === 'bn' ? 'বিস্তারিত' : 'View All'}
-              </button>
-            </div>
-
-            {activeBudgets.length === 0 ? (
-              <div className="py-8 text-center text-xs text-gray-400">
-                {language === 'bn'
-                  ? 'কোনো সক্রিয় বাজেট পাওয়া যায়নি।'
-                  : 'No active budgets configured yet.'}
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {activeBudgets.map((b) => {
-                  const percent = b.amount > 0 ? (b.spent / b.amount) * 100 : 0;
-                  return (
-                    <div key={b.id} className="space-y-1.5">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-semibold text-gray-800 dark:text-gray-200 truncate">
-                          {b.name}
-                        </span>
-                        <span className={clsx('font-bold', isPrivacyBlurEnabled && 'privacy-blur-target')}>
-                          {isPrivacyBlurEnabled
-                            ? '••••'
-                            : `${formatCurrency(b.spent)} / ${formatCurrency(b.amount)}`}
-                        </span>
-                      </div>
-                      <ProgressBar value={percent} size="sm" />
-                      <div className="flex justify-between text-[10px] text-gray-400">
-                        <span>
-                          {percent >= 100
-                            ? (language === 'bn' ? '⚠️ বাজেট অতিক্রম করেছে' : '⚠️ Limit Exceeded')
-                            : percent >= 80
-                            ? (language === 'bn' ? 'সতর্কতা: সীমা সন্নিকটে' : 'Warning: Approaching')
-                            : (language === 'bn' ? 'বাজেট নিয়ন্ত্রণে' : 'Within budget')}
-                        </span>
-                        <span>{Math.round(percent)}%</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          <div className="mt-6 pt-4 border-t border-gray-100 dark:border-gray-800">
-            <Button
-              variant="outline"
-              size="sm"
-              fullWidth
-              onClick={() => navigate('/budgets')}
-              leftIcon={<PlusCircle className="h-4 w-4" />}
-            >
-              {language === 'bn' ? '+ নতুন বাজেট যোগ করুন' : '+ New Budget Plan'}
-            </Button>
-          </div>
+        <div className="w-full min-w-0">
+          <MonthComparisonSection />
         </div>
       </div>
 
-      {/* ─── 5. Recent Transactions Stream ─────────────────────────────────── */}
-      <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-xs dark:border-gray-800 dark:bg-gray-800/90">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-sm font-bold text-gray-900 dark:text-white">
-              {language === 'bn' ? 'সাম্প্রতিক আর্থিক লেনদেন' : 'Recent Transaction Stream'}
-            </h3>
-            <p className="text-[11px] text-gray-500">
-              {language === 'bn'
-                ? 'আপনার ওয়ালেট ও ব্যাংক অ্যাকাউন্টের সর্বশেষ রেকর্ডসমূহ'
-                : 'Real-time record stream across your accounts'}
-            </p>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate('/transactions')}
-          >
-            {language === 'bn' ? 'সকল লেনদেন' : 'View Ledger'} &rarr;
-          </Button>
+      {/* ─── 7. Visualizations Row 2: Daily Spending Trend & Category Breakdown */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="w-full min-w-0">
+          <SpendingTrendChart />
         </div>
-
-        {recentTxns.length === 0 ? (
-          <div className="py-8 text-center text-xs text-gray-400">
-            {language === 'bn'
-              ? 'এখনও কোনো লেনদেন লিপিবদ্ধ করা হয়নি।'
-              : 'No transactions recorded yet.'}
-          </div>
-        ) : (
-          <div className="divide-y divide-gray-100 dark:divide-gray-800">
-            {recentTxns.map((t) => {
-              const isIncome = t.type === 'income' || t.type === 'refund';
-              return (
-                <div
-                  key={t.id}
-                  className="flex items-center justify-between py-3 transition-colors hover:bg-gray-50/50 dark:hover:bg-gray-800/50 rounded-xl px-2"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <BrandIconBubble brand={t.payment_method || t.description} size="sm" />
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-gray-900 dark:text-white truncate">
-                        {t.description}
-                      </p>
-                      <div className="flex items-center gap-2 text-[11px] text-gray-400 mt-0.5">
-                        <span>{formatDate(t.date)}</span>
-                        <span>•</span>
-                        <BrandBadge brand={t.payment_method || 'Cash'} size="sm" />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="text-right shrink-0">
-                    <span
-                      className={clsx(
-                        'text-xs font-bold transition-all',
-                        isIncome ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400',
-                        isPrivacyBlurEnabled && 'privacy-blur-target'
-                      )}
-                    >
-                      {isPrivacyBlurEnabled
-                        ? '৳ •••••'
-                        : `${isIncome ? '+' : '-'}${formatCurrency(Number(t.amount))}`}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+        <div className="w-full min-w-0">
+          <CategoryBreakdownChart />
+        </div>
       </div>
+
+      {/* ─── 8. Budget Utilization ────────────────────────────────────────── */}
+      <BudgetUtilizationChart />
+
+      {/* ─── 9. Recent Transactions ───────────────────────────────────────── */}
+      <RecentTransactions />
     </div>
   );
 }

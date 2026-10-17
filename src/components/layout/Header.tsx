@@ -31,6 +31,7 @@ import {
   Eye,
   EyeOff,
   Lock,
+  Palette,
 } from 'lucide-react';
 
 const routeTitles: Record<string, { en: string; bn: string }> = {
@@ -312,7 +313,17 @@ export function Header({ onToggleMobileSidebar }: HeaderProps) {
                     className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
                   >
                     <Settings className="h-4 w-4 text-gray-400" />
-                    Settings
+                    {language === 'bn' ? 'সেটিংস' : 'Settings'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      navigate('/settings?tab=theme');
+                    }}
+                    className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
+                  >
+                    <Palette className="h-4 w-4 text-indigo-500" />
+                    {language === 'bn' ? 'থিম ও অ্যাপিয়ারেন্স' : 'Theme Settings'}
                   </button>
                   {isPinEnabled && (
                     <button

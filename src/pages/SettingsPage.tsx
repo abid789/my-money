@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import clsx from 'clsx';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
@@ -50,8 +51,31 @@ import {
   getDevicePairingUrl,
 } from '@/lib/supabase';
 
+type SettingsTab = 'general' | 'theme' | 'sync' | 'security' | 'all';
+
 export default function SettingsPage() {
   const { user, profile, updateProfile, updatePassword, deleteAccount } = useAuth();
+  const { language } = useLanguage();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlTab = searchParams.get('tab') as SettingsTab | null;
+  const [activeTab, setActiveTab] = useState<SettingsTab>(() => {
+    if (urlTab && ['general', 'theme', 'sync', 'security', 'all'].includes(urlTab)) {
+      return urlTab;
+    }
+    return 'general';
+  });
+
+  useEffect(() => {
+    const current = searchParams.get('tab') as SettingsTab | null;
+    if (current && ['general', 'theme', 'sync', 'security', 'all'].includes(current)) {
+      setActiveTab(current);
+    }
+  }, [searchParams]);
+
+  const handleTabChange = (tab: SettingsTab) => {
+    setActiveTab(tab);
+    setSearchParams({ tab });
+  };
   const {
     theme,
     setTheme,
@@ -135,7 +159,6 @@ export default function SettingsPage() {
 
   // Reset to Zero & Real-Time Sync
   const { resetToZero, isCloudConnected, migrateLocalToCloud, syncStatus, lastSyncedAt, triggerSync } = useData();
-  const { language } = useLanguage();
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
 
@@ -400,21 +423,99 @@ export default function SettingsPage() {
       {/* Header */}
       <div>
         <h1 className="text-xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-2xl">
-          Settings & Preferences
+          {language === 'bn' ? 'সেটিংস ও পছন্দসমূহ' : 'Settings & Preferences'}
         </h1>
         <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-          Manage your personal profile, regional defaults, security, and theme.
+          {language === 'bn'
+            ? 'আপনার প্রোফাইল, ৭টি চমৎকার কালার থিম, ইমেইল রিপোর্ট ও সিকিউরিটি কন্ট্রোল পরিচালনা করুন।'
+            : 'Manage your personal profile, 7 custom themes, weekly email reports, and security controls.'}
         </p>
       </div>
 
+      {/* Settings Navigation Tabs */}
+      <div className="flex flex-wrap items-center gap-1.5 rounded-2xl bg-gray-100 p-1.5 dark:bg-gray-800/80 border border-gray-200/80 dark:border-gray-700/80 shadow-xs">
+        <button
+          type="button"
+          onClick={() => handleTabChange('general')}
+          className={clsx(
+            'flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all',
+            activeTab === 'general'
+              ? 'bg-white text-teal-700 shadow-xs dark:bg-gray-700 dark:text-teal-300'
+              : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+          )}
+        >
+          <User className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+          <span>{language === 'bn' ? 'প্রোফাইল ও সাধারণ' : 'General & Profile'}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleTabChange('theme')}
+          className={clsx(
+            'flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all',
+            activeTab === 'theme'
+              ? 'bg-white text-teal-700 shadow-xs dark:bg-gray-700 dark:text-teal-300'
+              : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+          )}
+        >
+          <Palette className="h-4 w-4 text-indigo-500" />
+          <span>{language === 'bn' ? 'থিম' : 'Theme'}</span>
+          <span className="rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-extrabold text-indigo-700 dark:bg-indigo-950/80 dark:text-indigo-300">
+            7 Themes
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleTabChange('sync')}
+          className={clsx(
+            'flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all',
+            activeTab === 'sync'
+              ? 'bg-white text-teal-700 shadow-xs dark:bg-gray-700 dark:text-teal-300'
+              : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+          )}
+        >
+          <Cloud className="h-4 w-4 text-teal-500" />
+          <span>{language === 'bn' ? 'ইমেইল ও ক্লাউড সিঙ্ক' : 'Email & Cloud Sync'}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleTabChange('security')}
+          className={clsx(
+            'flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all',
+            activeTab === 'security'
+              ? 'bg-white text-teal-700 shadow-xs dark:bg-gray-700 dark:text-teal-300'
+              : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+          )}
+        >
+          <Shield className="h-4 w-4 text-rose-500" />
+          <span>{language === 'bn' ? 'সিকিউরিটি ও মাস্টার পাসওয়ার্ড' : 'Security & Password'}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleTabChange('all')}
+          className={clsx(
+            'flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition-all ml-auto',
+            activeTab === 'all'
+              ? 'bg-white text-gray-800 shadow-xs dark:bg-gray-700 dark:text-gray-100'
+              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+          )}
+        >
+          <span>{language === 'bn' ? 'সবগুলো' : 'Show All'}</span>
+        </button>
+      </div>
+
       {/* Profile & Regional Settings */}
-      <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-800/90">
-        <div className="mb-4 flex items-center gap-2">
-          <User className="h-5 w-5 text-teal-600 dark:text-teal-400" />
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
-            Profile & Currency Preferences
-          </h2>
-        </div>
+      {(activeTab === 'general' || activeTab === 'all') && (
+        <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-800/90">
+          <div className="mb-4 flex items-center gap-2">
+            <User className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+              Profile & Currency Preferences
+            </h2>
+          </div>
 
         <form onSubmit={handleSaveProfile} className="space-y-4">
           <Input
@@ -479,8 +580,10 @@ export default function SettingsPage() {
           </div>
         </form>
       </div>
+      )}
 
-      {/* ─── Appearance & Personalization Center ────────────────────────────── */}
+      {/* ─── Appearance & Personalization Center (Theme) ────────────────────── */}
+      {(activeTab === 'theme' || activeTab === 'all') && (
       <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-800/90 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-gray-100 dark:border-gray-800 pb-4">
           <div className="flex items-center gap-2.5">
@@ -806,9 +909,13 @@ export default function SettingsPage() {
           )}
         </div>
       </div>
+      )}
 
-      {/* 7-Day Weekly Email Digest */}
-      <div className="rounded-2xl border border-teal-100 bg-white p-6 shadow-sm dark:border-teal-900/40 dark:bg-gray-800/90">
+      {/* ─── Email & Cloud Sync ─────────────────────────────────────────── */}
+      {(activeTab === 'sync' || activeTab === 'all') && (
+        <>
+          {/* 7-Day Weekly Email Digest */}
+          <div className="rounded-2xl border border-teal-100 bg-white p-6 shadow-sm dark:border-teal-900/40 dark:bg-gray-800/90">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Mail className="h-5 w-5 text-teal-600 dark:text-teal-400" />
@@ -1219,9 +1326,14 @@ export default function SettingsPage() {
           </div>
         )}
       </div>
+      </>
+      )}
 
-      {/* Change Password */}
-      <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-800/90">
+      {/* ─── Security & Authentication ──────────────────────────────────── */}
+      {(activeTab === 'security' || activeTab === 'all') && (
+        <>
+          {/* Change Password */}
+          <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-800/90">
         <div className="mb-2 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Lock className="h-5 w-5 text-teal-600 dark:text-teal-400" />
@@ -1327,6 +1439,8 @@ export default function SettingsPage() {
           </Button>
         </div>
       </div>
+      </>
+      )}
 
       <ConfirmDialog
         isOpen={resetDialogOpen}

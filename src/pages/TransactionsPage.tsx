@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '@/contexts/DataContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { formatCurrency } from '@/lib/utils';
 import type { Transaction, TransactionFilters as FilterType } from '@/types';
@@ -9,10 +10,11 @@ import { TransactionList } from '@/components/transactions/TransactionList';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { PlusCircle, Download, ArrowUpRight, ArrowDownLeft, ArrowUpDown, RotateCcw } from 'lucide-react';
+import { PlusCircle, Download, ArrowUpRight, ArrowDownLeft, ArrowUpDown, RotateCcw, FileText } from 'lucide-react';
 import Papa from 'papaparse';
 import { parseISO, isAfter, isBefore, isEqual } from 'date-fns';
 import toast from 'react-hot-toast';
+import { generateTransactionsLedgerPDF } from '@/lib/pdfReportGenerator';
 
 const defaultFilters: FilterType = {
   search: '',
@@ -28,12 +30,16 @@ const defaultFilters: FilterType = {
 };
 
 export default function TransactionsPage() {
-  const { transactions, loading, resetToZero } = useData();
+  const { transactions, categories, loading, resetToZero } = useData();
+  const { user, profile } = useAuth();
   const { language } = useLanguage();
   const navigate = useNavigate();
   const [filters, setFilters] = useState<FilterType>(defaultFilters);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  const [isExportingPDF, setIsExportingPDF] = useState(false);
+
+  const displayName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
 
   const handleConfirmReset = async () => {
     try {
@@ -175,6 +181,30 @@ export default function TransactionsPage() {
     toast.success('Transactions exported to CSV');
   };
 
+  const handleExportPDF = async () => {
+    if (filteredTransactions.length === 0) {
+      toast.error(language === 'bn' ? 'ডাউনলোড করার মতো কোনো লেনদেন পাওয়া যায়নি' : 'No transactions to export');
+      return;
+    }
+
+    try {
+      setIsExportingPDF(true);
+      await generateTransactionsLedgerPDF({
+        accountHolder: displayName,
+        transactions: filteredTransactions,
+        categories: categories || [],
+        totalIncome: filteredSummary.income,
+        totalExpense: filteredSummary.expense,
+        netCashFlow: filteredSummary.net,
+        language: language === 'bn' ? 'bn' : 'en',
+      });
+    } catch (err) {
+      console.error('PDF export error:', err);
+    } finally {
+      setIsExportingPDF(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex h-96 items-center justify-center">
@@ -218,6 +248,17 @@ export default function TransactionsPage() {
           >
             {language === 'bn' ? 'CSV ডাউনলোড' : 'Export CSV'}
           </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportPDF}
+            loading={isExportingPDF}
+            leftIcon={<FileText className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
+          >
+            {language === 'bn' ? 'PDF লেজার' : 'Export PDF'}
+          </Button>
+
           <Button
             variant="primary"
             onClick={() => navigate('/add-transaction')}

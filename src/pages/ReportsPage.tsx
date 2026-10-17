@@ -22,6 +22,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import toast from 'react-hot-toast';
 import { WeeklyEmailModal } from '@/components/reports/WeeklyEmailModal';
+import { generateStatementPDF } from '@/lib/pdfReportGenerator';
 
 export default function ReportsPage() {
   const { transactions, categories, selectedMonth, selectedYear } = useData();
@@ -68,173 +69,25 @@ export default function ReportsPage() {
     window.print();
   };
 
-  const handleExportPDF = () => {
-    try {
-      const doc = new jsPDF();
-      const periodLabel =
-        reportType === 'monthly'
-          ? `${selectedMonth}/${selectedYear}`
-          : `Annual ${selectedYear}`;
+  const handleExportPDF = async () => {
+    const periodLabel =
+      reportType === 'monthly'
+        ? `${selectedMonth}/${selectedYear}`
+        : `Annual ${selectedYear}`;
 
-      // ── Statement Header Bar ──
-      doc.setFillColor(15, 23, 42); // slate-900
-      doc.rect(0, 0, 210, 24, 'F');
-
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(15);
-      doc.setFont('helvetica', 'bold');
-      doc.text('MY MONEY - OFFICIAL FINANCIAL STATEMENT', 14, 16);
-
-      // Statement Metadata Info
-      doc.setTextColor(51, 65, 85);
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`Account Holder: ${displayName}`, 14, 32);
-      doc.text(`Statement Period: ${periodLabel}`, 14, 37);
-      doc.text(`Generated: ${new Date().toLocaleString()}`, 130, 32);
-      doc.text(`Currency: Bangladeshi Taka (BDT / Tk.)`, 130, 37);
-
-      // Dividing Line
-      doc.setDrawColor(203, 213, 225);
-      doc.setLineWidth(0.5);
-      doc.line(14, 41, 196, 41);
-
-      // ── 1. Financial Summary & Cash Flow ──
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(15, 23, 42);
-      doc.text('1. Financial Summary & Cash Flow', 14, 48);
-
-      autoTable(doc, {
-        startY: 51,
-        head: [['Financial Metric', 'Amount (BDT)', 'Performance / Share']],
-        body: [
-          ['Total Inflows (Income & Refunds)', `Tk. ${totalIncome.toFixed(2)}`, '100.0% Inflow'],
-          [
-            'Total Outflows (Expenses)',
-            `Tk. ${totalExpense.toFixed(2)}`,
-            totalIncome > 0 ? `${((totalExpense / totalIncome) * 100).toFixed(1)}% of Income` : '0.0%',
-          ],
-          [
-            'Net Cash Flow (Surplus / Deficit)',
-            `Tk. ${netCashFlow.toFixed(2)}`,
-            netCashFlow >= 0 ? 'Net Surplus (+)' : 'Net Deficit (-)',
-          ],
-          [
-            'Net Savings Rate',
-            `${savingsRate.toFixed(1)}%`,
-            savingsRate >= 20 ? 'Optimal (>=20%)' : 'Caution (<20%)',
-          ],
-        ],
-        theme: 'striped',
-        headStyles: { fillColor: [13, 148, 136] }, // teal-600
-        styles: { fontSize: 8.5 },
-      });
-
-      // ── 2. Expense Category Breakdown ──
-      let currentY = (doc as any).lastAutoTable.finalY + 8;
-      if (categorySpending.length > 0) {
-        doc.setFontSize(11);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(15, 23, 42);
-        doc.text('2. Spending Breakdown by Category', 14, currentY);
-
-        autoTable(doc, {
-          startY: currentY + 3,
-          head: [['Category', 'Amount (BDT)', 'Percentage of Total']],
-          body: categorySpending.map((c) => [
-            c.category,
-            `Tk. ${c.amount.toFixed(2)}`,
-            `${c.percentage.toFixed(1)}%`,
-          ]),
-          theme: 'striped',
-          headStyles: { fillColor: [79, 70, 229] }, // indigo-600
-          styles: { fontSize: 8.5 },
-        });
-        currentY = (doc as any).lastAutoTable.finalY + 8;
-      }
-
-      // ── 3. Largest Outflows in Period ──
-      if (topExpenses.length > 0) {
-        doc.setFontSize(11);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(15, 23, 42);
-        doc.text('3. Largest Outflows in Period', 14, currentY);
-
-        autoTable(doc, {
-          startY: currentY + 3,
-          head: [['#', 'Date', 'Description', 'Category', 'Amount (BDT)']],
-          body: topExpenses.map((t, idx) => {
-            const cat = categories.find((c) => c.id === t.category_id)?.name || 'General';
-            return [
-              String(idx + 1),
-              t.date,
-              t.description,
-              cat,
-              `Tk. ${Number(t.amount).toFixed(2)}`,
-            ];
-          }),
-          theme: 'striped',
-          headStyles: { fillColor: [225, 29, 72] }, // rose-600
-          styles: { fontSize: 8.5 },
-        });
-        currentY = (doc as any).lastAutoTable.finalY + 8;
-      }
-
-      // ── 4. Full Detailed Transaction Ledger ──
-      if (reportTransactions.length > 0) {
-        if (currentY > 235) {
-          doc.addPage();
-          currentY = 20;
-        }
-
-        doc.setFontSize(11);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(15, 23, 42);
-        doc.text('4. Complete Transaction Ledger', 14, currentY);
-
-        autoTable(doc, {
-          startY: currentY + 3,
-          head: [['Date', 'Type', 'Description', 'Category', 'Payment Method', 'Amount (BDT)']],
-          body: reportTransactions.map((t) => {
-            const isInc = t.type === 'income' || t.type === 'refund';
-            const cat = categories.find((c) => c.id === t.category_id)?.name || '-';
-            const sign = isInc ? '+' : '-';
-            return [
-              t.date,
-              t.type.toUpperCase(),
-              t.description,
-              cat,
-              t.payment_method || '-',
-              `${sign}Tk. ${Number(t.amount).toFixed(2)}`,
-            ];
-          }),
-          theme: 'striped',
-          headStyles: { fillColor: [30, 41, 59] }, // slate-800
-          styles: { fontSize: 8 },
-        });
-      }
-
-      // Page numbers and footer on each page
-      const totalPages = (doc.internal as any).getNumberOfPages();
-      for (let i = 1; i <= totalPages; i++) {
-        doc.setPage(i);
-        doc.setFontSize(8);
-        doc.setTextColor(100, 116, 139);
-        doc.text(
-          `Page ${i} of ${totalPages} • Computer-Generated Bank-Grade Financial Statement`,
-          14,
-          290
-        );
-        doc.text('My Money Personal Finance System', 145, 290);
-      }
-
-      doc.save(`Financial_Statement_${selectedYear}_${reportType === 'monthly' ? selectedMonth : 'Annual'}.pdf`);
-      toast.success('Official Bank-Statement-Style PDF downloaded successfully');
-    } catch (err) {
-      console.error(err);
-      toast.error('Failed to generate PDF');
-    }
+    await generateStatementPDF({
+      periodLabel,
+      accountHolder: displayName,
+      totalIncome,
+      totalExpense,
+      netCashFlow,
+      savingsRate,
+      categorySpending,
+      topExpenses,
+      transactions: reportTransactions,
+      categories,
+      language,
+    });
   };
 
   return (

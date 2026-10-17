@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
@@ -6,7 +5,6 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { getGreeting, formatDate } from '@/lib/utils';
 import { MonthSelector } from '@/components/dashboard/MonthSelector';
-import { ClassicDashboard } from '@/components/dashboard/ClassicDashboard';
 import { SmartDashboard } from '@/components/dashboard/SmartDashboard';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -14,16 +12,11 @@ import {
   PlusCircle,
   Sparkles,
   AlertCircle,
-  LayoutDashboard,
-  Zap,
   Eye,
   EyeOff,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import clsx from 'clsx';
-
-type DashboardView = 'classic' | 'smart';
-const DASHBOARD_VIEW_KEY = 'my-money-dashboard-view';
 
 export default function DashboardPage() {
   const { user, profile } = useAuth();
@@ -31,22 +24,6 @@ export default function DashboardPage() {
   const { isPrivacyBlurEnabled, togglePrivacyBlur } = useTheme();
   const { t, language } = useLanguage();
   const navigate = useNavigate();
-
-  // Persistent Dashboard View Switcher (Defaults to 'classic')
-  const [activeView, setActiveView] = useState<DashboardView>(() => {
-    try {
-      const saved = localStorage.getItem(DASHBOARD_VIEW_KEY);
-      if (saved === 'smart' || saved === 'classic') return saved;
-    } catch {}
-    return 'classic';
-  });
-
-  const handleSelectView = (view: DashboardView) => {
-    setActiveView(view);
-    try {
-      localStorage.setItem(DASHBOARD_VIEW_KEY, view);
-    } catch {}
-  };
 
   const displayName =
     profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || (language === 'bn' ? 'আবিদ' : 'Abid');
@@ -80,37 +57,6 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          {/* Dashboard Switcher Pill */}
-          <div className="flex rounded-xl bg-gray-100 p-1 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-xs">
-            <button
-              type="button"
-              onClick={() => handleSelectView('classic')}
-              className={clsx(
-                'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all',
-                activeView === 'classic'
-                  ? 'bg-white text-teal-700 shadow-xs dark:bg-gray-700 dark:text-teal-300'
-                  : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
-              )}
-            >
-              <LayoutDashboard className="h-3.5 w-3.5" />
-              <span>{language === 'bn' ? 'ক্লাসিক ড্যাশবোর্ড' : 'Classic View'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleSelectView('smart')}
-              className={clsx(
-                'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all',
-                activeView === 'smart'
-                  ? 'bg-white text-teal-700 shadow-xs dark:bg-gray-700 dark:text-teal-300'
-                  : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
-              )}
-            >
-              <Zap className="h-3.5 w-3.5 text-amber-500" />
-              <span>{language === 'bn' ? 'স্মার্ট ককপিট' : 'Smart Cockpit'}</span>
-            </button>
-          </div>
-
           <MonthSelector />
 
           {/* Privacy Eye Toggle */}
@@ -161,8 +107,8 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Render Active View */}
-      {activeView === 'classic' ? <ClassicDashboard /> : <SmartDashboard />}
+      {/* Unified Smart Cockpit Dashboard */}
+      <SmartDashboard />
     </div>
   );
 }
