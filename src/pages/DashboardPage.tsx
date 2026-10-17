@@ -6,6 +6,8 @@ import { getGreeting, formatDate } from '@/lib/utils';
 import { SummaryCards } from '@/components/dashboard/SummaryCards';
 import { MonthSelector } from '@/components/dashboard/MonthSelector';
 import { IncomeExpenseChart } from '@/components/dashboard/IncomeExpenseChart';
+import { CashFlowOverview } from '@/components/dashboard/CashFlowOverview';
+import { MonthComparisonSection } from '@/components/dashboard/MonthComparisonSection';
 import { SpendingTrendChart } from '@/components/dashboard/SpendingTrendChart';
 import { CategoryBreakdownChart } from '@/components/dashboard/CategoryBreakdownChart';
 import { BudgetUtilizationChart } from '@/components/dashboard/BudgetUtilizationChart';
@@ -117,17 +119,23 @@ export default function DashboardPage() {
       {/* 6 Financial Metric Summary Cards */}
       <SummaryCards />
 
-      {/* Visualizations Row 1: Income vs Expenses & Category Breakdown */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      {/* Cash Flow Overview */}
+      <CashFlowOverview />
+
+      {/* Visualizations Row 1: Income vs Expenses & Month-to-Month Comparison */}
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <IncomeExpenseChart />
+        <MonthComparisonSection />
+      </div>
+
+      {/* Visualizations Row 2: Daily Spending Trend & Category Breakdown */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <SpendingTrendChart />
         <CategoryBreakdownChart />
       </div>
 
-      {/* Visualizations Row 2: Daily Spending Trend & Budget Utilization */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <SpendingTrendChart />
-        <BudgetUtilizationChart />
-      </div>
+      {/* Budget Utilization */}
+      <BudgetUtilizationChart />
 
       {/* Recent Transactions List */}
       <RecentTransactions />

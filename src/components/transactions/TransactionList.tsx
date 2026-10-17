@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '@/contexts/DataContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { formatCurrency, formatRelativeDate } from '@/lib/utils';
 import type { Transaction } from '@/types';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -31,6 +32,7 @@ const ITEMS_PER_PAGE = 15;
 
 export function TransactionList({ transactions, onAddClick }: TransactionListProps) {
   const { deleteTransaction } = useData();
+  const { language } = useLanguage();
   const navigate = useNavigate();
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -130,8 +132,12 @@ export function TransactionList({ transactions, onAddClick }: TransactionListPro
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5">
-                            <span className="font-semibold text-gray-900 dark:text-white">
-                              {txn.description}
+                            <span className={clsx(
+                              txn.description
+                                ? 'font-semibold text-gray-900 dark:text-white'
+                                : 'italic text-gray-400 dark:text-gray-500 font-normal'
+                            )}>
+                              {txn.description || (language === 'bn' ? 'বিবরণ নেই' : 'No description')}
                             </span>
                             {txn.notes && (
                               <span title={txn.notes}>
@@ -140,7 +146,9 @@ export function TransactionList({ transactions, onAddClick }: TransactionListPro
                             )}
                           </div>
                           <div className="flex items-center gap-2 text-xs text-gray-400 md:hidden">
-                            <span>{txn.category?.name || (isTransfer ? 'Transfer' : 'General')}</span>
+                            <span>
+                              {txn.category?.name || (isTransfer ? 'Transfer' : (language === 'bn' ? 'শ্রেণীহীন' : 'Uncategorized'))}
+                            </span>
                             <span>•</span>
                             <span>{formatRelativeDate(txn.date)}</span>
                           </div>
@@ -150,13 +158,13 @@ export function TransactionList({ transactions, onAddClick }: TransactionListPro
 
                     <td className="hidden px-4 py-3.5 text-xs text-gray-600 dark:text-gray-300 md:table-cell">
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium dark:bg-gray-700 dark:text-gray-200">
-                        {txn.category?.name || (isTransfer ? 'Transfer' : 'Uncategorized')}
+                        {txn.category?.name || (isTransfer ? 'Transfer' : (language === 'bn' ? 'শ্রেণীহীন' : 'Uncategorized'))}
                       </span>
                     </td>
 
                     <td className="hidden px-4 py-3.5 text-xs text-gray-600 dark:text-gray-300 sm:table-cell">
                       <div className="font-medium text-gray-800 dark:text-gray-200">
-                        {txn.account?.name || 'Account'}
+                        {txn.account?.name || (language === 'bn' ? 'অ্যাকাউন্ট নেই' : 'No account')}
                       </div>
                       {txn.payment_method && (
                         <div className="text-[11px] text-gray-400">

@@ -74,13 +74,6 @@ export function TransactionForm({
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Auto-select first active account if none selected
-  useEffect(() => {
-    if (!accountId && accounts.length > 0) {
-      setAccountId(accounts[0].id);
-    }
-  }, [accounts, accountId]);
-
   // Filter categories matching current transaction type
   const availableCategories = categories.filter((cat) => {
     if (type === 'income') return cat.type === 'income';
@@ -94,26 +87,21 @@ export function TransactionForm({
     if (!amount || isNaN(numAmount) || numAmount <= 0) {
       errs.amount = 'Please enter a valid amount greater than 0';
     }
-    if (!description.trim()) {
-      errs.description = 'Description is required';
-    }
     if (!date) {
       errs.date = 'Date is required';
     }
-    if (!accountId) {
-      errs.accountId = 'Please select an account';
-    }
+    // Only transfers require source and destination accounts
     if (type === 'transfer') {
+      if (!accountId) {
+        errs.accountId = 'Please select source account for transfer';
+      }
       if (!toAccountId) {
         errs.toAccountId = 'Please select destination account';
       } else if (toAccountId === accountId) {
         errs.toAccountId = 'Source and destination accounts must be different';
       }
-    } else {
-      if (!categoryId) {
-        errs.categoryId = 'Please select a category';
-      }
     }
+    // Note: description, category, and account are optional for income/expense/refund transactions!
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -133,12 +121,12 @@ export function TransactionForm({
       const txnData: Partial<Transaction> = {
         type,
         amount: parseFloat(amount),
-        description: description.trim(),
+        description: description.trim() || null,
         date,
         time: time || null,
         category_id: type === 'transfer' ? null : categoryId || null,
         subcategory: subCategory.trim() || null,
-        account_id: accountId,
+        account_id: accountId || null,
         to_account_id: type === 'transfer' ? toAccountId : null,
         payment_method: paymentMethod || null,
         merchant: merchant.trim() || null,
@@ -252,8 +240,8 @@ export function TransactionForm({
       {/* Description & Category */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Input
-          label="Description *"
-          placeholder="e.g. Grocery shopping, Monthly salary, Bus fare"
+          label="Description (Optional)"
+          placeholder="e.g. Grocery, Salary (Leave empty if not needed)"
           value={description}
           onChange={(e) => {
             setDescription(e.target.value);
@@ -265,7 +253,7 @@ export function TransactionForm({
         {type !== 'transfer' ? (
           <div>
             <Select
-              label="Category *"
+              label="Category (Optional)"
               value={categoryId}
               onChange={(e) => {
                 setCategoryId(e.target.value);
@@ -273,7 +261,7 @@ export function TransactionForm({
               }}
               error={errors.categoryId}
               options={[
-                { value: '', label: 'Select a category' },
+                { value: '', label: 'Uncategorized / শ্রেণীহীন' },
                 ...availableCategories.map((c) => ({
                   value: c.id,
                   label: c.name,
@@ -308,7 +296,7 @@ export function TransactionForm({
       {/* Account & Payment Method */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Select
-          label={type === 'transfer' ? 'From Account *' : 'Account *'}
+          label={type === 'transfer' ? 'From Account *' : 'Account (Optional)'}
           value={accountId}
           onChange={(e) => {
             setAccountId(e.target.value);
@@ -316,7 +304,7 @@ export function TransactionForm({
           }}
           error={errors.accountId}
           options={[
-            { value: '', label: 'Select account' },
+            { value: '', label: type === 'transfer' ? 'Select source account' : 'No Account / একাউন্ট ছাড়া' },
             ...accounts.map((a) => ({
               value: a.id,
               label: `${a.name} (${a.type})`,

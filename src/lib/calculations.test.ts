@@ -243,4 +243,84 @@ describe('Financial Calculations Engine', () => {
     expect(breakdown[1].amount).toBe(5000);
     expect(breakdown[1].percentage).toBe(25);
   });
+
+  it('handles transactions with null description, category, and account correctly', () => {
+    const optionalTxns: Transaction[] = [
+      {
+        id: 'txn-opt-1',
+        user_id: 'user-1',
+        type: 'income',
+        amount: 10000,
+        date: '2026-10-10',
+        time: null,
+        description: null,
+        category_id: null,
+        subcategory: null,
+        account_id: null,
+        to_account_id: null,
+        payment_method: null,
+        merchant: null,
+        notes: null,
+        tags: [],
+        is_recurring: false,
+        recurring_id: null,
+        created_at: '2026-10-10T00:00:00Z',
+        updated_at: '2026-10-10T00:00:00Z',
+      },
+      {
+        id: 'txn-opt-2',
+        user_id: 'user-1',
+        type: 'expense',
+        amount: 3000,
+        date: '2026-10-11',
+        time: null,
+        description: null,
+        category_id: null,
+        subcategory: null,
+        account_id: null,
+        to_account_id: null,
+        payment_method: null,
+        merchant: null,
+        notes: null,
+        tags: [],
+        is_recurring: false,
+        recurring_id: null,
+        created_at: '2026-10-11T00:00:00Z',
+        updated_at: '2026-10-11T00:00:00Z',
+      },
+      {
+        id: 'txn-opt-3',
+        user_id: 'user-1',
+        type: 'transfer',
+        amount: 2000,
+        date: '2026-10-12',
+        time: null,
+        description: 'Internal transfer',
+        category_id: null,
+        subcategory: null,
+        account_id: 'acc-1',
+        to_account_id: 'acc-2',
+        payment_method: null,
+        merchant: null,
+        notes: null,
+        tags: [],
+        is_recurring: false,
+        recurring_id: null,
+        created_at: '2026-10-12T00:00:00Z',
+        updated_at: '2026-10-12T00:00:00Z',
+      },
+    ];
+
+    // Income & Expense totals should not double-count transfers
+    expect(calculateTotalIncome(optionalTxns)).toBe(10000);
+    expect(calculateTotalExpenses(optionalTxns)).toBe(3000);
+    expect(calculateNetCashFlow(10000, 3000)).toBe(7000);
+
+    // Uncategorized expense grouping
+    const breakdown = calculateCategoryBreakdown(optionalTxns, []);
+    expect(breakdown).toHaveLength(1);
+    expect(breakdown[0].category).toBe('Uncategorised');
+    expect(breakdown[0].amount).toBe(3000);
+    expect(breakdown[0].percentage).toBe(100);
+  });
 });

@@ -332,7 +332,7 @@ function setLocal<T>(key: string, data: T) {
       const hydratedTxns = t.map((txn) => ({
         ...txn,
         category: txn.category_id ? catMap.get(txn.category_id) : undefined,
-        account: accMap.get(txn.account_id),
+        account: txn.account_id ? accMap.get(txn.account_id) : undefined,
         to_account: txn.to_account_id ? accMap.get(txn.to_account_id) : undefined,
       }));
 
@@ -578,7 +578,7 @@ function setLocal<T>(key: string, data: T) {
         description: txn.description || '',
         category_id: txn.category_id || null,
         subcategory: txn.subcategory || null,
-        account_id: txn.account_id || '',
+        account_id: txn.account_id || null,
         to_account_id: txn.to_account_id || null,
         payment_method: txn.payment_method || null,
         merchant: txn.merchant || null,

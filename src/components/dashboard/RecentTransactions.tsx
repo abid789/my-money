@@ -131,8 +131,13 @@ export function RecentTransactions() {
 
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <p className="truncate text-xs font-semibold text-gray-900 dark:text-white sm:text-sm">
-                      {txn.description}
+                    <p className={clsx(
+                      'truncate text-xs sm:text-sm',
+                      txn.description
+                        ? 'font-semibold text-gray-900 dark:text-white'
+                        : 'italic text-gray-400 dark:text-gray-500'
+                    )}>
+                      {txn.description || (language === 'bn' ? 'বিবরণ নেই' : 'No description')}
                     </p>
                     {txn.notes && (
                       <span title={txn.notes}>
@@ -144,7 +149,7 @@ export function RecentTransactions() {
                     <span>{formatRelativeDate(txn.date)}</span>
                     <span>•</span>
                     <span className="truncate">
-                      {txn.category?.name || (txn.type === 'transfer' ? 'Transfer' : 'General')}
+                      {txn.category?.name || (txn.type === 'transfer' ? 'Transfer' : (language === 'bn' ? 'শ্রেণীহীন' : 'Uncategorized'))}
                     </span>
                     {txn.payment_method && (
                       <>
@@ -162,7 +167,7 @@ export function RecentTransactions() {
                 <div className="text-right text-xs sm:text-sm">
                   {getTypeBadge(txn.type, Number(txn.amount))}
                   <div className="text-[11px] text-gray-400">
-                    {txn.account?.name || 'Main'}
+                    {txn.account?.name || (language === 'bn' ? 'অ্যাকাউন্ট নেই' : 'No account')}
                   </div>
                 </div>
 

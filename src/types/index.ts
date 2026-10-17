@@ -59,11 +59,11 @@ export interface Transaction {
   amount: number;
   date: string;
   time: string | null;
-  description: string;
+  description: string | null;
   category_id: string | null;
   category?: Category;
   subcategory: string | null;
-  account_id: string;
+  account_id: string | null;
   account?: Account;
   to_account_id: string | null;
   to_account?: Account;

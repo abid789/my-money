@@ -55,7 +55,7 @@ export function generateWeeklyReportData(
     .sort((a, b) => Number(b.amount) - Number(a.amount))
     .slice(0, 5)
     .map((t) => ({
-      description: t.description,
+      description: t.description || 'No description',
       amount: Number(t.amount),
       category: t.category?.name || 'General',
       date: t.date,

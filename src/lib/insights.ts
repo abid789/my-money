@@ -259,7 +259,7 @@ export function generateInsights(
   // ── 9. Income diversity ───────────────────────────────────────────────
 
   if (incomeTransactions.length > 0) {
-    const uniqueDescriptions = new Set(incomeTransactions.map((t) => t.description.toLowerCase()));
+    const uniqueDescriptions = new Set(incomeTransactions.map((t) => (t.description || '').toLowerCase()));
     if (uniqueDescriptions.size === 1) {
       insights.push({
         id: generateId(),
