@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { Lock, Eye, EyeOff, ArrowRight, Loader2, KeyRound, Sparkles, Check } from 'lucide-react';
+import { Lock, Eye, EyeOff, ArrowRight, Loader2, KeyRound } from 'lucide-react';
 import clsx from 'clsx';
 
 export default function LoginForm() {
@@ -13,19 +13,11 @@ export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [autoFilled, setAutoFilled] = useState(false);
 
   // If already authenticated, redirect straight to dashboard
   if (user) {
     return <Navigate to="/dashboard" replace />;
   }
-
-  const handleQuickFill = () => {
-    setPassword('11223344');
-    setAutoFilled(true);
-    setError('');
-    setTimeout(() => setAutoFilled(false), 2000);
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,32 +82,6 @@ export default function LoginForm() {
             </p>
           </div>
 
-          {/* Default Password Quick Hint & 1-Click Paste */}
-          <div className="mb-6 rounded-2xl border border-teal-200 bg-teal-50/70 p-3.5 dark:border-teal-800/60 dark:bg-teal-950/30">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-                <span className="text-xs font-medium text-teal-900 dark:text-teal-200">
-                  ডিফল্ট পাসওয়ার্ড: <strong className="font-mono text-sm tracking-wider">11223344</strong>
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={handleQuickFill}
-                className="inline-flex items-center gap-1 rounded-lg bg-teal-600 px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition hover:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-600"
-              >
-                {autoFilled ? (
-                  <>
-                    <Check className="h-3.5 w-3.5" />
-                    <span>বসানো হয়েছে</span>
-                  </>
-                ) : (
-                  <span>স্বয়ংক্রিয় বসান</span>
-                )}
-              </button>
-            </div>
-          </div>
-
           {/* Error Message */}
           {error && (
             <div className="mb-5 rounded-2xl border border-red-200 bg-red-50/90 p-3.5 text-xs font-medium text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300 animate-in fade-in">
@@ -145,7 +111,7 @@ export default function LoginForm() {
                     setPassword(e.target.value);
                     if (error) setError('');
                   }}
-                  placeholder="পাসওয়ার্ড লিখুন (যেমন: 11223344)"
+                  placeholder="পাসওয়ার্ড লিখুন"
                   className={clsx(
                     'w-full rounded-2xl border py-3.5 pl-11 pr-12 text-sm transition-all',
                     'bg-white dark:bg-gray-700/80',

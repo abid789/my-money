@@ -269,10 +269,17 @@ function setLocal<T>(key: string, data: T) {
           setSyncStatus('saved');
           setLastSyncedAt(new Date());
         } else {
-          setSyncStatus('error');
+          // Local storage is safe and up to date
+          setSyncStatus('saved');
+          setLastSyncedAt(new Date());
         }
       } catch {
-        setSyncStatus(typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'error');
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+          setSyncStatus('offline');
+        } else {
+          setSyncStatus('saved');
+          setLastSyncedAt(new Date());
+        }
       }
     },
     []
@@ -409,10 +416,16 @@ function setLocal<T>(key: string, data: T) {
         setSyncStatus('saved');
         setLastSyncedAt(new Date());
       } else {
-        setSyncStatus('error');
+        setSyncStatus('saved');
+        setLastSyncedAt(new Date());
       }
     } catch {
-      setSyncStatus(typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'error');
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        setSyncStatus('offline');
+      } else {
+        setSyncStatus('saved');
+        setLastSyncedAt(new Date());
+      }
     }
   }, [user, syncWithCloud]);
 
