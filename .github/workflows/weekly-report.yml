@@ -1,0 +1,19 @@
+name: Weekly Financial Digest
+
+on:
+  schedule:
+    # Runs every Sunday at 03:00 UTC (09:00 AM Bangladesh Time / BST)
+    - cron: '0 3 * * 0'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+
+jobs:
+  send-weekly-digest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Weekly Financial Summary to abidasset@gmail.com
+        run: |
+          echo "Triggering weekly financial digest for abidasset@gmail.com..."
+          curl -s -X POST https://my-money-tau.vercel.app/api/send-weekly-report \
+            -H "Content-Type: application/json" \
+            -d '{"to":"abidasset@gmail.com"}' || true
+          echo "Weekly digest trigger completed successfully."

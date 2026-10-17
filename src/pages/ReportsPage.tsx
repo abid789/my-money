@@ -12,14 +12,19 @@ import {
   TrendingDown,
   ArrowUpDown,
   PiggyBank,
+  Mail,
+  Clock,
+  CheckCircle2,
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import toast from 'react-hot-toast';
+import { WeeklyEmailModal } from '@/components/reports/WeeklyEmailModal';
 
 export default function ReportsPage() {
   const { transactions, categories, selectedMonth, selectedYear } = useData();
   const [reportType, setReportType] = useState<'monthly' | 'yearly'>('monthly');
+  const [weeklyModalOpen, setWeeklyModalOpen] = useState(false);
 
   // Filter transactions for report
   const reportTransactions = useMemo(() => {
@@ -155,6 +160,15 @@ export default function ReportsPage() {
           <Button
             variant="outline"
             size="sm"
+            onClick={() => setWeeklyModalOpen(true)}
+            leftIcon={<Mail className="h-4 w-4 text-teal-600 dark:text-teal-400" />}
+          >
+            সাপ্তাহিক রিপোর্ট ইমেইল
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handlePrint}
             leftIcon={<Printer className="h-4 w-4" />}
           >
@@ -170,6 +184,35 @@ export default function ReportsPage() {
             Export PDF
           </Button>
         </div>
+      </div>
+
+      {/* 7-Day Auto Digest Notification Banner */}
+      <div className="flex flex-col items-start justify-between gap-3 rounded-2xl border border-teal-200 bg-gradient-to-r from-teal-50 to-emerald-50/60 p-4 shadow-xs dark:border-teal-900/50 dark:from-teal-950/30 dark:to-emerald-950/20 sm:flex-row sm:items-center">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-teal-600 text-white shadow-xs dark:bg-teal-500">
+            <Mail className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-gray-900 dark:text-white">
+                স্বয়ংক্রিয় সাপ্তাহিক হিসাব সক্রিয় (প্রতি ৭ দিন)
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300">
+                <CheckCircle2 className="h-3 w-3" /> abidasset@gmail.com
+              </span>
+            </div>
+            <p className="mt-0.5 text-[11px] text-gray-600 dark:text-gray-300">
+              আপনার কম্পিউটার বন্ধ থাকলেও GitHub Actions ও Vercel Cron প্রতি রবিবার সকাল ৯:০০ টায় গত ৭ দিনের হিসাব ইমেইলে পাঠিয়ে দেয়।
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => setWeeklyModalOpen(true)}
+          className="shrink-0 rounded-lg border border-teal-300 bg-white px-3 py-1.5 text-xs font-semibold text-teal-700 shadow-xs transition-colors hover:bg-teal-50 dark:border-teal-800 dark:bg-gray-800 dark:text-teal-300 dark:hover:bg-gray-700"
+        >
+          রিপোর্ট প্রিভিউ ও তাৎক্ষণিক প্রেরণ &rarr;
+        </button>
       </div>
 
       {/* Overview Cards */}
@@ -284,6 +327,12 @@ export default function ReportsPage() {
           </div>
         )}
       </div>
+
+      <WeeklyEmailModal
+        isOpen={weeklyModalOpen}
+        onClose={() => setWeeklyModalOpen(false)}
+        defaultEmail="abidasset@gmail.com"
+      />
     </div>
   );
 }

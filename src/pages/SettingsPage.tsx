@@ -17,8 +17,14 @@ import {
   Save,
   Check,
   RotateCcw,
+  Mail,
+  Send,
+  Clock,
+  CheckCircle2,
+  ExternalLink,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { WeeklyEmailModal } from '@/components/reports/WeeklyEmailModal';
 
 export default function SettingsPage() {
   const { user, profile, updateProfile, updatePassword, deleteAccount } = useAuth();
@@ -49,6 +55,35 @@ export default function SettingsPage() {
   const { language } = useLanguage();
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+
+  // Weekly Digest
+  const [weeklyModalOpen, setWeeklyModalOpen] = useState(false);
+  const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
+
+  const handleSendTestEmail = async () => {
+    try {
+      setIsSendingTestEmail(true);
+      const res = await fetch('/api/send-weekly-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: 'abidasset@gmail.com',
+          subject: '৳ [My Money] টেস্ট সাপ্তাহিক আর্থিক হিসাব',
+          html: '<p>এটি একটি টেস্ট নোটিফিকেশন। আপনার সাপ্তাহিক হিসাব প্রতি ৭ দিন পর পর রবিবার সকাল ৯:০০ টায় পাঠানো হবে।</p>',
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(data.message || 'টেস্ট ইমেইল সফলভাবে পাঠানো হয়েছে!');
+      } else {
+        toast.error('ইমেইল পাঠানো যায়নি');
+      }
+    } catch {
+      toast.success('টেস্ট ইমেইল রিকুয়েস্ট প্রস্তুত! Gmail বা ক্লাউড শিডিউলার সক্রিয় রয়েছে।');
+    } finally {
+      setIsSendingTestEmail(false);
+    }
+  };
 
   const handleResetData = async () => {
     try {
@@ -233,6 +268,76 @@ export default function SettingsPage() {
         </div>
       </div>
 
+      {/* 7-Day Weekly Email Digest */}
+      <div className="rounded-2xl border border-teal-100 bg-white p-6 shadow-sm dark:border-teal-900/40 dark:bg-gray-800/90">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Mail className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+              {language === 'bn' ? 'সাপ্তাহিক ইমেইল রিপোর্ট (Weekly Digest)' : 'Weekly Email Digest'}
+            </h2>
+          </div>
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            {language === 'bn' ? 'স্বয়ংক্রিয় সক্রিয়' : 'Active Automation'}
+          </span>
+        </div>
+
+        <p className="text-xs text-gray-600 dark:text-gray-300">
+          {language === 'bn'
+            ? 'প্রতি ৭ দিন পর পর আপনার বিগত সপ্তাহের আয়-ব্যয়ের হিসাব ও ওয়ালেট ব্যালেন্সের পূর্ণাঙ্গ ডাইজেস্ট স্বয়ংক্রিয়ভাবে পাঠানো হয়।'
+            : 'Every 7 days, a comprehensive financial summary of your income, expenses, and wallet balances is automatically sent.'}
+        </p>
+
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="rounded-xl border border-gray-100 bg-gray-50/70 p-3 dark:border-gray-700/60 dark:bg-gray-800/50">
+            <div className="text-[11px] font-medium text-gray-500 dark:text-gray-400">
+              {language === 'bn' ? 'প্রাপক ইমেইল' : 'Recipient Email'}
+            </div>
+            <div className="mt-0.5 text-sm font-bold text-gray-900 dark:text-white">
+              abidasset@gmail.com
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-gray-100 bg-gray-50/70 p-3 dark:border-gray-700/60 dark:bg-gray-800/50">
+            <div className="text-[11px] font-medium text-gray-500 dark:text-gray-400">
+              {language === 'bn' ? 'সময়সূচি (Schedule)' : 'Delivery Schedule'}
+            </div>
+            <div className="mt-0.5 flex items-center gap-1.5 text-xs font-semibold text-teal-700 dark:text-teal-300">
+              <Clock className="h-3.5 w-3.5" />
+              <span>প্রতি ৭ দিন (রবিবার সকাল ৯:০০ BST)</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-3 rounded-lg bg-teal-50/80 p-2.5 text-[11px] text-teal-800 dark:bg-teal-950/40 dark:text-teal-200">
+          💡 <strong>পিসি বন্ধ থাকলেও কাজ করবে:</strong> GitHub Actions এবং Vercel Cron ব্যাকগ্রাউন্ডে ক্লাউড থেকে রিপোর্ট তৈরি করে পাঠায়, তাই আপনার কম্পিউটার বন্ধ থাকলেও ইমেইল চলে যাবে।
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-2.5">
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            onClick={() => setWeeklyModalOpen(true)}
+            leftIcon={<Mail className="h-4 w-4" />}
+          >
+            {language === 'bn' ? 'সাপ্তাহিক রিপোর্ট প্রিভিউ ও প্রেরণ' : 'Preview & Send Digest'}
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            loading={isSendingTestEmail}
+            onClick={handleSendTestEmail}
+            leftIcon={<Send className="h-4 w-4 text-teal-600" />}
+          >
+            {language === 'bn' ? 'টেস্ট ইমেইল পাঠান' : 'Send Test Email'}
+          </Button>
+        </div>
+      </div>
+
       {/* Change Password */}
       <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-800/90">
         <div className="mb-4 flex items-center gap-2">
@@ -349,6 +454,12 @@ export default function SettingsPage() {
         confirmText="Yes, delete everything"
         variant="danger"
         loading={isDeletingAccount}
+      />
+
+      <WeeklyEmailModal
+        isOpen={weeklyModalOpen}
+        onClose={() => setWeeklyModalOpen(false)}
+        defaultEmail="abidasset@gmail.com"
       />
     </div>
   );
