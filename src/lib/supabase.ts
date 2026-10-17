@@ -3,8 +3,11 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 // ── Check if a key is a secret service_role key ─────────────────────────────
 export function isServiceRoleKey(key: string): boolean {
   if (!key) return false;
+  const trimmed = key.trim();
+  if (trimmed.startsWith('sb_secret_')) return true;
+  if (trimmed.toLowerCase().includes('secret')) return true;
   try {
-    const parts = key.trim().split('.');
+    const parts = trimmed.split('.');
     if (parts.length >= 2) {
       const payload = JSON.parse(atob(parts[1]));
       return payload?.role === 'service_role';
@@ -194,7 +197,7 @@ export function saveSupabaseCloudConfig(url: string, key: string) {
   if (!url || !key) throw new Error('URL and Key are required');
   if (isServiceRoleKey(key)) {
     throw new Error(
-      "আপনি ভুলবশত 'service_role' (Secret) কি দিয়েছেন! অনুগ্রহ করে 'anon' (Public) কি কপি করে দিন।"
+      "আপনি ভুলবশত 'SECRET_KEY' (বা service_role) দিয়েছেন! ব্রাউজারের জন্য অনুগ্রহ করে 'SUPABASE_PUBLISHABLE_KEY' (বা anon public key) কপি করে দিন।"
     );
   }
   const cleanUrl = normalizeSupabaseUrl(url);
