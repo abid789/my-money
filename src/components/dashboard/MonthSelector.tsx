@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { useData } from '@/contexts/DataContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { ChevronLeft, ChevronRight, Calendar, Check } from 'lucide-react';
 import clsx from 'clsx';
 
-const MONTH_NAMES = [
+const MONTH_NAMES_EN = [
   'January',
   'February',
   'March',
@@ -18,10 +19,28 @@ const MONTH_NAMES = [
   'December',
 ];
 
+const MONTH_NAMES_BN = [
+  'জানুয়ারি',
+  'ফেব্রুয়ারি',
+  'মার্চ',
+  'এপ্রিল',
+  'মে',
+  'জুন',
+  'জুলাই',
+  'আগস্ট',
+  'সেপ্টেম্বর',
+  'অক্টোবর',
+  'নভেম্বর',
+  'ডিসেম্বর',
+];
+
 export function MonthSelector() {
   const { selectedMonth, selectedYear, setSelectedMonth, setSelectedYear } = useData();
+  const { language } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const monthNames = language === 'bn' ? MONTH_NAMES_BN : MONTH_NAMES_EN;
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -73,7 +92,7 @@ export function MonthSelector() {
       >
         <Calendar className="h-4 w-4 text-teal-600 dark:text-teal-400" />
         <span>
-          {MONTH_NAMES[selectedMonth - 1]} {selectedYear}
+          {monthNames[selectedMonth - 1]} {selectedYear}
         </span>
       </button>
 
@@ -90,7 +109,7 @@ export function MonthSelector() {
         <div className="absolute left-0 top-full z-50 mt-2 w-64 rounded-2xl border border-gray-100 bg-white p-3 shadow-xl ring-1 ring-black/5 dark:border-gray-700 dark:bg-gray-800 dark:ring-white/10">
           <div className="mb-2 flex items-center justify-between border-b border-gray-100 pb-2 dark:border-gray-700">
             <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              Select Month ({selectedYear})
+              {language === 'bn' ? `মাস নির্বাচন (${selectedYear})` : `Select Month (${selectedYear})`}
             </span>
             <div className="flex gap-1">
               <button
@@ -109,7 +128,7 @@ export function MonthSelector() {
           </div>
 
           <div className="grid grid-cols-3 gap-1">
-            {MONTH_NAMES.map((name, idx) => {
+            {monthNames.map((name, idx) => {
               const isSelected = selectedMonth === idx + 1;
               return (
                 <button
@@ -122,8 +141,8 @@ export function MonthSelector() {
                       : 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700'
                   )}
                 >
-                  <span>{name.slice(0, 3)}</span>
-                  {isSelected && <Check className="h-3 w-3 text-teal-600 dark:text-teal-400" />}
+                  <span className="truncate">{language === 'bn' ? name : name.slice(0, 3)}</span>
+                  {isSelected && <Check className="h-3 w-3 shrink-0 text-teal-600 dark:text-teal-400" />}
                 </button>
               );
             })}

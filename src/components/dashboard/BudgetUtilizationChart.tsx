@@ -1,37 +1,41 @@
 import { Link } from 'react-router-dom';
 import { useData } from '@/contexts/DataContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { formatCurrency, calculatePercentageUsed } from '@/lib/utils';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { AlertCircle, ChevronRight, Target } from 'lucide-react';
 
 export function BudgetUtilizationChart() {
   const { budgets } = useData();
+  const { language, t } = useLanguage();
   const activeBudgets = budgets.filter((b) => b.is_active);
 
   if (activeBudgets.length === 0) {
     return (
       <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-800/90">
         <div className="flex items-center justify-between pb-3">
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-            Budget Utilization
+          <h3 className="text-base font-bold text-gray-900 dark:text-white">
+            {t('dash.budget_status')}
           </h3>
           <Link
             to="/budgets"
-            className="flex items-center text-xs font-semibold text-teal-600 hover:text-teal-700 dark:text-teal-400"
+            className="flex items-center gap-0.5 text-xs font-semibold text-teal-600 hover:text-teal-700 dark:text-teal-400"
           >
-            Manage <ChevronRight className="h-3 w-3" />
+            {language === 'bn' ? 'সেটআপ করুন' : 'Manage'} <ChevronRight className="h-3.5 w-3.5" />
           </Link>
         </div>
         <div className="py-8 text-center">
           <Target className="mx-auto h-8 w-8 text-gray-300 dark:text-gray-600" />
           <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-            No budgets created yet. Set a monthly or category budget to track limits.
+            {language === 'bn'
+              ? 'এখনো কোনো বাজেট পরিকল্পনা করা হয়নি। মাসিক বা নির্দিষ্ট খাতে বাজেট সীমা নির্ধারণ করুন।'
+              : 'No budgets created yet. Set a monthly or category budget to track limits.'}
           </p>
           <Link
             to="/budgets"
             className="mt-3 inline-block rounded-lg bg-teal-50 px-3 py-1.5 text-xs font-semibold text-teal-700 hover:bg-teal-100 dark:bg-teal-950/60 dark:text-teal-300"
           >
-            Create Budget
+            {language === 'bn' ? '+ নতুন বাজেট যোগ করুন' : 'Create Budget'}
           </Link>
         </div>
       </div>
@@ -39,21 +43,21 @@ export function BudgetUtilizationChart() {
   }
 
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-800/90">
+    <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition-all hover:shadow-md dark:border-gray-800 dark:bg-gray-800/90">
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-            Budget Utilization
+          <h3 className="text-base font-bold text-gray-900 dark:text-white">
+            {t('dash.budget_status')}
           </h3>
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            Track spending against your set limits
+            {language === 'bn' ? 'নির্ধারিত বাজেট সীমার সাপেক্ষে খরচের শতাংশ' : 'Track spending against your set limits'}
           </p>
         </div>
         <Link
           to="/budgets"
-          className="flex items-center text-xs font-semibold text-teal-600 hover:text-teal-700 dark:text-teal-400"
+          className="flex items-center gap-0.5 text-xs font-semibold text-teal-600 hover:text-teal-700 dark:text-teal-400"
         >
-          View all <ChevronRight className="h-3 w-3" />
+          {t('dash.view_all')} <ChevronRight className="h-3.5 w-3.5" />
         </Link>
       </div>
 

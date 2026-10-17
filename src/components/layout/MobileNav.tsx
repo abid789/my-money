@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
+import { useLanguage } from '@/contexts/LanguageContext';
 import clsx from 'clsx';
 import {
   LayoutDashboard,
@@ -20,26 +21,27 @@ import {
 } from 'lucide-react';
 
 const mainTabs = [
-  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/transactions', label: 'Transactions', icon: ArrowLeftRight },
-  { path: '/add-transaction', label: 'Add', icon: PlusCircle, isCenter: true },
-  { path: '/budgets', label: 'Budgets', icon: Target },
+  { path: '/dashboard', key: 'nav.dashboard', icon: LayoutDashboard },
+  { path: '/transactions', key: 'nav.transactions', icon: ArrowLeftRight },
+  { path: '/add-transaction', key: 'nav.add_transaction', icon: PlusCircle, isCenter: true },
+  { path: '/budgets', key: 'nav.budgets', icon: Target },
 ];
 
 const moreItems = [
-  { path: '/categories', label: 'Categories', icon: Tag },
-  { path: '/accounts', label: 'Accounts', icon: Wallet },
-  { path: '/insights', label: 'Insights', icon: Lightbulb },
-  { path: '/reports', label: 'Reports', icon: FileBarChart },
-  { path: '/savings', label: 'Savings Goals', icon: PiggyBank },
-  { path: '/calendar', label: 'Calendar', icon: CalendarDays },
-  { path: '/recurring', label: 'Recurring', icon: Repeat },
-  { path: '/settings', label: 'Settings', icon: Settings },
-  { path: '/data', label: 'Data & Backup', icon: Download },
+  { path: '/categories', key: 'nav.categories', icon: Tag },
+  { path: '/accounts', key: 'nav.accounts', icon: Wallet },
+  { path: '/insights', key: 'nav.insights', icon: Lightbulb },
+  { path: '/reports', key: 'nav.reports', icon: FileBarChart },
+  { path: '/savings', key: 'nav.savings', icon: PiggyBank },
+  { path: '/calendar', key: 'nav.calendar', icon: CalendarDays },
+  { path: '/recurring', key: 'nav.recurring', icon: Repeat },
+  { path: '/settings', key: 'nav.settings', icon: Settings },
+  { path: '/data', key: 'nav.data', icon: Download },
 ];
 
 export function MobileNav() {
   const [showMore, setShowMore] = useState(false);
+  const { t, language } = useLanguage();
   const location = useLocation();
 
   // Close "more" menu on route change
@@ -78,7 +80,9 @@ export function MobileNav() {
           <div className="fixed inset-x-0 bottom-0 z-50 animate-slide-up rounded-t-2xl border-t border-gray-200 bg-white pb-safe dark:border-gray-700 dark:bg-gray-800">
             {/* Handle */}
             <div className="flex items-center justify-between px-4 py-3">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">More</h3>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                {language === 'bn' ? 'সকল মেনু' : 'All Menus'}
+              </h3>
               <button
                 onClick={handleClose}
                 className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
@@ -93,6 +97,7 @@ export function MobileNav() {
                 {moreItems.map((item) => {
                   const Icon = item.icon;
                   const isActive = location.pathname === item.path;
+                  const itemLabel = t(item.key);
 
                   return (
                     <li key={item.path}>
@@ -113,7 +118,7 @@ export function MobileNav() {
                               : 'text-gray-400 dark:text-gray-500'
                           )}
                         />
-                        <span className="text-xs font-medium leading-tight">{item.label}</span>
+                        <span className="text-xs font-medium leading-tight">{itemLabel}</span>
                       </NavLink>
                     </li>
                   );
@@ -130,6 +135,7 @@ export function MobileNav() {
           {mainTabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = location.pathname === tab.path;
+            const tabLabel = t(tab.key);
 
             if (tab.isCenter) {
               return (
@@ -150,11 +156,11 @@ export function MobileNav() {
                   </div>
                   <span
                     className={clsx(
-                      'mt-1 text-[10px] font-medium',
+                      'mt-1 text-[10px] font-semibold',
                       isActive ? 'text-teal-600 dark:text-teal-400' : 'text-gray-500 dark:text-gray-400'
                     )}
                   >
-                    {tab.label}
+                    {tabLabel}
                   </span>
                 </NavLink>
               );
@@ -182,7 +188,7 @@ export function MobileNav() {
                       : 'text-gray-500 dark:text-gray-400'
                   )}
                 >
-                  {tab.label}
+                  {tabLabel}
                 </span>
                 {isActive && (
                   <div className="absolute top-0 h-0.5 w-8 rounded-full bg-teal-500" />
@@ -212,7 +218,7 @@ export function MobileNav() {
                   : 'text-gray-500 dark:text-gray-400'
               )}
             >
-              More
+              {language === 'bn' ? 'আরও' : 'More'}
             </span>
           </button>
         </div>

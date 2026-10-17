@@ -1,4 +1,5 @@
 import { useData } from '@/contexts/DataContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { formatCurrency, getPercentageChange } from '@/lib/utils';
 import {
   TrendingUp,
@@ -14,6 +15,7 @@ import clsx from 'clsx';
 
 export function SummaryCards() {
   const { financialSummary } = useData();
+  const { t, language } = useLanguage();
 
   const incomeChange = getPercentageChange(
     financialSummary.totalIncome,
@@ -30,31 +32,29 @@ export function SummaryCards() {
 
   const cards = [
     {
-      title: 'Total Income',
+      title: t('dash.total_income'),
       amount: financialSummary.totalIncome,
       icon: TrendingUp,
       color: 'text-emerald-600 dark:text-emerald-400',
       bgColor: 'bg-emerald-50 dark:bg-emerald-950/40',
       borderColor: 'border-emerald-200 dark:border-emerald-800/40',
       change: incomeChange,
-      // For income, increase is good
       isPositive: incomeChange >= 0,
       showChange: financialSummary.prevMonthIncome > 0,
     },
     {
-      title: 'Total Expenses',
+      title: t('dash.total_expenses'),
       amount: financialSummary.totalExpenses,
       icon: TrendingDown,
       color: 'text-rose-600 dark:text-rose-400',
       bgColor: 'bg-rose-50 dark:bg-rose-950/40',
       borderColor: 'border-rose-200 dark:border-rose-800/40',
       change: expenseChange,
-      // For expense, increase is bad!
       isPositive: expenseChange <= 0,
       showChange: financialSummary.prevMonthExpenses > 0,
     },
     {
-      title: 'Net Cash Flow',
+      title: t('dash.net_cashflow'),
       amount: financialSummary.netCashFlow,
       icon: ArrowUpDown,
       color: 'text-teal-600 dark:text-teal-400',
@@ -65,31 +65,33 @@ export function SummaryCards() {
       showChange: financialSummary.prevMonthCashFlow !== 0,
     },
     {
-      title: 'Available Balance',
+      title: t('dash.available_balance'),
       amount: financialSummary.availableBalance,
       icon: Wallet,
       color: 'text-blue-600 dark:text-blue-400',
       bgColor: 'bg-blue-50 dark:bg-blue-950/40',
       borderColor: 'border-blue-200 dark:border-blue-800/40',
-      subtitle: 'Across all accounts',
+      subtitle: language === 'bn' ? 'সকল অ্যাকাউন্টের মোট জমা' : 'Across all accounts',
     },
     {
-      title: 'Total Savings',
+      title: t('dash.total_savings'),
       amount: financialSummary.totalSavings,
       icon: PiggyBank,
       color: 'text-indigo-600 dark:text-indigo-400',
       bgColor: 'bg-indigo-50 dark:bg-indigo-950/40',
       borderColor: 'border-indigo-200 dark:border-indigo-800/40',
-      subtitle: 'In savings goals',
+      subtitle: language === 'bn' ? 'সঞ্চয় লক্ষ্যসমূহে জমা' : 'In savings goals',
     },
     {
-      title: 'Remaining Budget',
+      title: t('dash.remaining_budget'),
       amount: financialSummary.remainingBudget,
       icon: Target,
       color: financialSummary.remainingBudget < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-amber-600 dark:text-amber-400',
       bgColor: financialSummary.remainingBudget < 0 ? 'bg-rose-50 dark:bg-rose-950/40' : 'bg-amber-50 dark:bg-amber-950/40',
       borderColor: financialSummary.remainingBudget < 0 ? 'border-rose-200 dark:border-rose-800/40' : 'border-amber-200 dark:border-amber-800/40',
-      subtitle: financialSummary.remainingBudget < 0 ? 'Over budget!' : 'For this month',
+      subtitle: financialSummary.remainingBudget < 0
+        ? (language === 'bn' ? 'বাজেট অতিরিক্ত খরচ!' : 'Over budget!')
+        : (language === 'bn' ? 'চলতি মাসের বাকি বাজেট' : 'For this month'),
     },
   ];
 

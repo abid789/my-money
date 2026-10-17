@@ -63,52 +63,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const personalUser = {
+    id: 'personal-user-abid',
+    email: 'abidasset@gmail.com',
+    user_metadata: { full_name: 'Abid Hasan' },
+    app_metadata: {},
+    aud: 'authenticated',
+    created_at: new Date().toISOString(),
+  } as unknown as User;
+
+  const personalProfile: Profile = {
+    id: 'personal-user-abid',
+    email: 'abidasset@gmail.com',
+    full_name: 'Abid Hasan',
+    avatar_url: null,
+    default_currency: 'BDT',
+    timezone: 'Asia/Dhaka',
+    date_format: 'dd/MM/yyyy',
+    first_day_of_week: 0,
+    theme: 'system',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
   const enterDemoMode = useCallback(() => {
-    const demoUser = {
-      id: 'demo-user-id',
-      email: 'user@mymoney.local',
-      user_metadata: { full_name: 'Abid Hasan' },
-      app_metadata: {},
-      aud: 'authenticated',
-      created_at: new Date().toISOString(),
-    } as unknown as User;
-
-    const demoProfile: Profile = {
-      id: 'demo-user-id',
-      email: 'user@mymoney.local',
-      full_name: 'Abid Hasan',
-      avatar_url: null,
-      default_currency: 'BDT',
-      timezone: 'Asia/Dhaka',
-      date_format: 'dd/MM/yyyy',
-      first_day_of_week: 0,
-      theme: 'system',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
-    setUser(demoUser);
-    setProfile(demoProfile);
+    setUser(personalUser);
+    setProfile(personalProfile);
     localStorage.setItem(
       'my-money-demo-user',
-      JSON.stringify({ user: demoUser, profile: demoProfile })
+      JSON.stringify({ user: personalUser, profile: personalProfile })
     );
-    toast.success('Welcome to My Money! (Local Explorer Mode)');
   }, []);
 
   // ── Auth State Listener ───────────────────────────────────────────────
 
   useEffect(() => {
     if (!isSupabaseConfigured()) {
-      const savedDemo = localStorage.getItem('my-money-demo-user');
-      if (savedDemo) {
+      const savedUser = localStorage.getItem('my-money-demo-user');
+      if (savedUser) {
         try {
-          const parsed = JSON.parse(savedDemo);
+          const parsed = JSON.parse(savedUser);
           setUser(parsed.user);
           setProfile(parsed.profile);
         } catch {
-          // ignore
+          setUser(personalUser);
+          setProfile(personalProfile);
         }
+      } else {
+        setUser(personalUser);
+        setProfile(personalProfile);
+        localStorage.setItem(
+          'my-money-demo-user',
+          JSON.stringify({ user: personalUser, profile: personalProfile })
+        );
       }
       setLoading(false);
       return;
@@ -116,15 +123,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Get the initial session
     supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
-      setSession(initialSession);
-      setUser(initialSession?.user ?? null);
-
       if (initialSession?.user) {
+        setSession(initialSession);
+        setUser(initialSession.user);
         fetchProfile(initialSession.user.id);
+      } else {
+        // Auto-initialize personal profile so login is never forced
+        setUser(personalUser);
+        setProfile(personalProfile);
       }
-
       setLoading(false);
     }).catch(() => {
+      setUser(personalUser);
+      setProfile(personalProfile);
       setLoading(false);
     });
 
@@ -132,15 +143,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
-      setSession(newSession);
-      setUser(newSession?.user ?? null);
-
       if (newSession?.user) {
+        setSession(newSession);
+        setUser(newSession.user);
         await fetchProfile(newSession.user.id);
       } else {
-        setProfile(null);
+        setUser(personalUser);
+        setProfile(personalProfile);
       }
-
       setLoading(false);
     });
 

@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useData } from '@/contexts/DataContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { formatCurrency } from '@/lib/utils';
 import { calculateCategoryBreakdown } from '@/lib/calculations';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
@@ -19,6 +20,7 @@ const COLORS = [
 
 export function CategoryBreakdownChart() {
   const { transactions, categories } = useData();
+  const { language, t } = useLanguage();
 
   const spendingData = useMemo(() => {
     return calculateCategoryBreakdown(transactions, categories);
@@ -32,20 +34,20 @@ export function CategoryBreakdownChart() {
     return (
       <div className="flex h-full min-h-[300px] flex-col items-center justify-center rounded-2xl border border-gray-100 bg-white p-6 text-center shadow-sm dark:border-gray-800 dark:bg-gray-800/90">
         <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
-          No expense transactions recorded for this period.
+          {language === 'bn' ? 'চলতি মাসে কোনো খরচের রেকর্ড পাওয়া যায়নি।' : 'No expense transactions recorded for this period.'}
         </p>
       </div>
     );
   }
 
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-800/90">
+    <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition-all hover:shadow-md dark:border-gray-800 dark:bg-gray-800/90">
       <div className="mb-4">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-          Expenses by Category
+        <h3 className="text-base font-bold text-gray-900 dark:text-white">
+          {t('dash.category_breakdown')}
         </h3>
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          Breakdown of total {formatCurrency(totalExpense)}
+          {language === 'bn' ? `মোট খরচের বণ্টন: ${formatCurrency(totalExpense)}` : `Breakdown of total ${formatCurrency(totalExpense)}`}
         </p>
       </div>
 

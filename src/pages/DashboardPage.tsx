@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { getGreeting, formatDate } from '@/lib/utils';
 import { SummaryCards } from '@/components/dashboard/SummaryCards';
 import { MonthSelector } from '@/components/dashboard/MonthSelector';
@@ -17,17 +18,18 @@ import { format } from 'date-fns';
 export default function DashboardPage() {
   const { user } = useAuth();
   const { loading, error, refreshData } = useData();
+  const { t, language } = useLanguage();
   const navigate = useNavigate();
 
   const displayName =
-    user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Friend';
+    user?.user_metadata?.full_name || user?.email?.split('@')[0] || (language === 'bn' ? 'আবিদ' : 'Abid');
   const greeting = getGreeting();
   const todayStr = formatDate(format(new Date(), 'yyyy-MM-dd'), 'EEEE, MMMM dd, yyyy');
 
   if (loading) {
     return (
       <div className="flex h-96 items-center justify-center">
-        <LoadingSpinner size="lg" text="Loading your financial dashboard..." />
+        <LoadingSpinner size="lg" text={language === 'bn' ? 'ড্যাশবোর্ড লোড হচ্ছে...' : 'Loading your financial dashboard...'} />
       </div>
     );
   }
@@ -39,12 +41,14 @@ export default function DashboardPage() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-2xl">
-              {greeting}, {displayName}!
+              {language === 'bn' ? `স্বাগতম, ${displayName}!` : `${greeting}, ${displayName}!`}
             </h1>
             <Sparkles className="h-5 w-5 text-teal-500" />
           </div>
           <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-            {todayStr} • Here is your financial overview.
+            {language === 'bn'
+              ? `${todayStr} • আপনার রিয়েল-টাইম ব্যক্তিগত আয়-ব্যয়ের হিসাব`
+              : `${todayStr} • Here is your financial overview.`}
           </p>
         </div>
 
@@ -55,7 +59,7 @@ export default function DashboardPage() {
             onClick={() => navigate('/add-transaction')}
             leftIcon={<PlusCircle className="h-4 w-4" />}
           >
-            Add Transaction
+            {t('txn.add_new')}
           </Button>
         </div>
       </div>

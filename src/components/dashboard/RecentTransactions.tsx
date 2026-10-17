@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useData } from '@/contexts/DataContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { formatCurrency, formatRelativeDate } from '@/lib/utils';
 import type { Transaction } from '@/types';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -19,6 +20,7 @@ import toast from 'react-hot-toast';
 
 export function RecentTransactions() {
   const { transactions, deleteTransaction } = useData();
+  const { t, language } = useLanguage();
   const navigate = useNavigate();
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -31,9 +33,9 @@ export function RecentTransactions() {
     try {
       setIsDeleting(true);
       await deleteTransaction(deleteId);
-      toast.success('Transaction deleted');
+      toast.success(language === 'bn' ? 'লেনদেন মুছে ফেলা হয়েছে' : 'Transaction deleted');
     } catch {
-      toast.error('Failed to delete transaction');
+      toast.error(language === 'bn' ? 'মুছে ফেলতে সমস্যা হয়েছে' : 'Failed to delete transaction');
     } finally {
       setIsDeleting(false);
       setDeleteId(null);
@@ -83,27 +85,29 @@ export function RecentTransactions() {
   };
 
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-800/90">
+    <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition-all hover:shadow-md dark:border-gray-800 dark:bg-gray-800/90">
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-            Recent Transactions
+          <h3 className="text-base font-bold text-gray-900 dark:text-white">
+            {t('dash.recent_transactions')}
           </h3>
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            Latest activities across all accounts
+            {language === 'bn' ? 'সকল অ্যাকাউন্টের সাম্প্রতিক লেনদেন ও খরচ' : 'Latest activities across all accounts'}
           </p>
         </div>
         <Link
           to="/transactions"
-          className="flex items-center text-xs font-semibold text-teal-600 hover:text-teal-700 dark:text-teal-400"
+          className="flex items-center gap-0.5 text-xs font-semibold text-teal-600 hover:text-teal-700 dark:text-teal-400"
         >
-          View all <ChevronRight className="h-3 w-3" />
+          {t('dash.view_all')} <ChevronRight className="h-3.5 w-3.5" />
         </Link>
       </div>
 
       {recent.length === 0 ? (
         <div className="py-8 text-center text-xs text-gray-400">
-          No transactions yet. Click "+ Add Transaction" to create your first entry.
+          {language === 'bn'
+            ? 'এখনো কোনো লেনদেন যুক্ত করা হয়নি। উপরে "+ নতুন যোগ করুন" বাটনে ক্লিক করে হিসাব শুরু করুন।'
+            : 'No transactions yet. Click "+ Add Transaction" to create your first entry.'}
         </div>
       ) : (
         <div className="divide-y divide-gray-100 dark:divide-gray-800">

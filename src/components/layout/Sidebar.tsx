@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import clsx from 'clsx';
 import {
   LayoutDashboard,
@@ -22,23 +23,24 @@ import {
 } from 'lucide-react';
 
 const navItems = [
-  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/transactions', label: 'Transactions', icon: ArrowLeftRight },
-  { path: '/add-transaction', label: 'Add Transaction', icon: PlusCircle },
-  { path: '/budgets', label: 'Budgets', icon: Target },
-  { path: '/categories', label: 'Categories', icon: Tag },
-  { path: '/accounts', label: 'Accounts', icon: Wallet },
-  { path: '/insights', label: 'Insights', icon: Lightbulb },
-  { path: '/reports', label: 'Reports', icon: FileBarChart },
-  { path: '/savings', label: 'Savings Goals', icon: PiggyBank },
-  { path: '/calendar', label: 'Calendar', icon: CalendarDays },
-  { path: '/recurring', label: 'Recurring', icon: Repeat },
-  { path: '/settings', label: 'Settings', icon: Settings },
-  { path: '/data', label: 'Data & Backup', icon: Download },
+  { path: '/dashboard', key: 'nav.dashboard', icon: LayoutDashboard },
+  { path: '/transactions', key: 'nav.transactions', icon: ArrowLeftRight },
+  { path: '/add-transaction', key: 'nav.add_transaction', icon: PlusCircle },
+  { path: '/budgets', key: 'nav.budgets', icon: Target },
+  { path: '/categories', key: 'nav.categories', icon: Tag },
+  { path: '/accounts', key: 'nav.accounts', icon: Wallet },
+  { path: '/insights', key: 'nav.insights', icon: Lightbulb },
+  { path: '/reports', key: 'nav.reports', icon: FileBarChart },
+  { path: '/savings', key: 'nav.savings', icon: PiggyBank },
+  { path: '/calendar', key: 'nav.calendar', icon: CalendarDays },
+  { path: '/recurring', key: 'nav.recurring', icon: Repeat },
+  { path: '/settings', key: 'nav.settings', icon: Settings },
+  { path: '/data', key: 'nav.data', icon: Download },
 ];
 
 export function Sidebar() {
   const { user, signOut } = useAuth();
+  const { t, language } = useLanguage();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
 
@@ -74,12 +76,17 @@ export function Sidebar() {
           collapsed ? 'justify-center' : 'gap-3'
         )}
       >
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-teal-400 to-teal-600">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-teal-400 to-teal-600 shadow-md shadow-teal-500/20">
           <span className="text-lg font-bold text-white">৳</span>
         </div>
         {!collapsed && (
           <div className="min-w-0">
-            <h1 className="truncate text-lg font-bold text-gray-900 dark:text-white">My Money</h1>
+            <h1 className="truncate text-base font-bold text-gray-900 dark:text-white">
+              {language === 'bn' ? 'আমার টাকা' : 'My Money'}
+            </h1>
+            <p className="text-[10px] text-gray-400 font-medium -mt-0.5">
+              Personal Finance
+            </p>
           </div>
         )}
       </div>
@@ -90,12 +97,13 @@ export function Sidebar() {
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
+            const itemLabel = t(item.key);
 
             return (
               <li key={item.path}>
                 <NavLink
                   to={item.path}
-                  title={collapsed ? item.label : undefined}
+                  title={collapsed ? itemLabel : undefined}
                   className={clsx(
                     'group flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
                     collapsed ? 'justify-center' : 'gap-3',
@@ -109,10 +117,10 @@ export function Sidebar() {
                       'h-5 w-5 shrink-0',
                       isActive
                         ? 'text-white'
-                        : 'text-gray-400 group-hover:text-gray-600 dark:text-gray-500 dark:group-hover:text-gray-300'
+                        : 'text-gray-400 group-hover:text-gray-600 dark:text-gray-400 dark:group-hover:text-gray-300'
                     )}
                   />
-                  {!collapsed && <span className="truncate">{item.label}</span>}
+                  {!collapsed && <span className="truncate">{itemLabel}</span>}
                 </NavLink>
               </li>
             );
