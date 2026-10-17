@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import clsx from 'clsx';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
@@ -147,30 +147,95 @@ export default function SettingsPage() {
     }
   };
 
-  // Weekly Digest
+  // Weekly Digest & Server Test Email
   const [weeklyModalOpen, setWeeklyModalOpen] = useState(false);
   const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
+  const [emailConfig, setEmailConfig] = useState<{
+    configured: boolean;
+    fromEmail: string;
+    configuredRecipient: string;
+    provider?: string;
+  }>({
+    configured: false,
+    fromEmail: 'onboarding@resend.dev',
+    configuredRecipient: 'abidhossain52003@gmail.com',
+  });
+  const [testEmailStatus, setTestEmailStatus] = useState<{
+    type: 'success' | 'error';
+    message: string;
+    id?: string;
+    restriction?: string;
+    allowedOwnerEmail?: string;
+    reason?: string;
+    resolution?: string;
+  } | null>(null);
 
-  const handleSendTestEmail = async () => {
+  const fetchEmailConfig = async () => {
+    try {
+      const res = await fetch('/api/test-email');
+      if (res.ok) {
+        const data = await res.json();
+        setEmailConfig({
+          configured: Boolean(data.configured),
+          fromEmail: data.fromEmail || 'onboarding@resend.dev',
+          configuredRecipient: data.configuredRecipient || 'abidhossain52003@gmail.com',
+          provider: data.provider || 'Resend',
+        });
+      }
+    } catch {
+      // Fallback
+    }
+  };
+
+  useEffect(() => {
+    fetchEmailConfig();
+  }, []);
+
+  const handleSendTestEmail = async (overrideRecipient?: string) => {
+    const targetRecipient = overrideRecipient || emailConfig.configuredRecipient;
     try {
       setIsSendingTestEmail(true);
-      const res = await fetch('/api/send-weekly-report', {
+      setTestEmailStatus(null);
+      const res = await fetch('/api/test-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          to: 'abidasset@gmail.com',
-          subject: '৳ [My Money] টেস্ট সাপ্তাহিক আর্থিক হিসাব',
-          html: '<p>এটি একটি টেস্ট নোটিফিকেশন। আপনার সাপ্তাহিক হিসাব প্রতি ৭ দিন পর পর রবিবার সকাল ৯:০০ টায় পাঠানো হবে।</p>',
+          to: targetRecipient,
         }),
       });
-      const data = await res.json();
-      if (data.success) {
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.success) {
+        setTestEmailStatus({
+          type: 'success',
+          id: data.id,
+          message: data.message || `টেস্ট ইমেইল সফলভাবে ${targetRecipient}-এ পাঠানো হয়েছে!`,
+        });
         toast.success(data.message || 'টেস্ট ইমেইল সফলভাবে পাঠানো হয়েছে!');
       } else {
-        toast.error('ইমেইল পাঠানো যায়নি');
+        const isRestricted = data.restriction === 'resend_testing_restriction';
+        setTestEmailStatus({
+          type: 'error',
+          message: data.message || data.error?.message || 'টেস্ট ইমেইল পাঠানো সম্ভব হয়নি',
+          restriction: data.restriction,
+          allowedOwnerEmail: data.allowedOwnerEmail,
+          reason: data.reason,
+          resolution: data.resolution,
+        });
+        toast.error(
+          isRestricted
+            ? 'Resend রেস্ট্রিকশন: টেস্ট সেন্ডার দিয়ে শুধুমাত্র ওনারের নিজস্ব ইমেইলে পাঠানো যায়।'
+            : data.message || 'ইমেইল পাঠানো যায়নি',
+          { duration: 6000 }
+        );
       }
-    } catch {
-      toast.success('টেস্ট ইমেইল রিকুয়েস্ট প্রস্তুত! Gmail বা ক্লাউড শিডিউলার সক্রিয় রয়েছে।');
+    } catch (err: any) {
+      setTestEmailStatus({
+        type: 'error',
+        message: err?.message || 'সার্ভারে সংযোগ করতে ব্যর্থ হয়েছে।',
+      });
+      toast.error('সার্ভারে সংযোগ করতে সমস্যা হয়েছে');
     } finally {
       setIsSendingTestEmail(false);
     }
@@ -370,70 +435,176 @@ export default function SettingsPage() {
 
       {/* 7-Day Weekly Email Digest */}
       <div className="rounded-2xl border border-teal-100 bg-white p-6 shadow-sm dark:border-teal-900/40 dark:bg-gray-800/90">
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Mail className="h-5 w-5 text-teal-600 dark:text-teal-400" />
             <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
-              {language === 'bn' ? 'সাপ্তাহিক ইমেইল রিপোর্ট (Weekly Digest)' : 'Weekly Email Digest'}
+              {language === 'bn' ? 'সাপ্তাহিক ইমেইল রিপোর্ট (Resend Email Integration)' : 'Weekly Email Digest (Resend Integration)'}
             </h2>
           </div>
-          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300">
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            {language === 'bn' ? 'স্বয়ংক্রিয় সক্রিয়' : 'Active Automation'}
-          </span>
+          {emailConfig.configured ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              {language === 'bn' ? 'Resend API সংযুক্ত' : 'Resend API Connected'}
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              {language === 'bn' ? 'API কী কনফিগার করুন' : 'API Key Missing'}
+            </span>
+          )}
         </div>
 
         <p className="text-xs text-gray-600 dark:text-gray-300">
           {language === 'bn'
-            ? 'প্রতি ৭ দিন পর পর আপনার বিগত সপ্তাহের আয়-ব্যয়ের হিসাব ও ওয়ালেট ব্যালেন্সের পূর্ণাঙ্গ ডাইজেস্ট স্বয়ংক্রিয়ভাবে পাঠানো হয়।'
-            : 'Every 7 days, a comprehensive financial summary of your income, expenses, and wallet balances is automatically sent.'}
+            ? 'Resend API ব্যবহার করে প্রতি সপ্তাহের আর্থিক আয়-ব্যয় এবং ওয়ালেট ব্যালেন্সের সারসংক্ষেপ নিরাপদে আপনার ইমেইলে পৌঁছে যায়।'
+            : 'Automate weekly financial summaries sent to your email address using Resend API.'}
         </p>
 
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {/* 3 Configuration Info Cards */}
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {/* Target Recipient */}
           <div className="rounded-xl border border-gray-100 bg-gray-50/70 p-3 dark:border-gray-700/60 dark:bg-gray-800/50">
             <div className="text-[11px] font-medium text-gray-500 dark:text-gray-400">
-              {language === 'bn' ? 'প্রাপক ইমেইল' : 'Recipient Email'}
+              {language === 'bn' ? 'প্রাপক ইমেইল (WEEKLY_REPORT_TO)' : 'Recipient (WEEKLY_REPORT_TO)'}
             </div>
-            <div className="mt-0.5 text-sm font-bold text-gray-900 dark:text-white">
-              abidasset@gmail.com
+            <div className="mt-0.5 text-sm font-bold text-gray-900 dark:text-white truncate">
+              {emailConfig.configuredRecipient}
             </div>
           </div>
 
+          {/* Sender */}
           <div className="rounded-xl border border-gray-100 bg-gray-50/70 p-3 dark:border-gray-700/60 dark:bg-gray-800/50">
             <div className="text-[11px] font-medium text-gray-500 dark:text-gray-400">
-              {language === 'bn' ? 'সময়সূচি (Schedule)' : 'Delivery Schedule'}
+              {language === 'bn' ? 'প্রেরক (RESEND_FROM_EMAIL)' : 'Sender (RESEND_FROM_EMAIL)'}
+            </div>
+            <div className="mt-0.5 text-xs font-bold text-gray-900 dark:text-white truncate">
+              {emailConfig.fromEmail}
+            </div>
+          </div>
+
+          {/* Schedule */}
+          <div className="rounded-xl border border-gray-100 bg-gray-50/70 p-3 dark:border-gray-700/60 dark:bg-gray-800/50">
+            <div className="text-[11px] font-medium text-gray-500 dark:text-gray-400">
+              {language === 'bn' ? 'সময়সূচি (Schedule)' : 'Weekly Schedule'}
             </div>
             <div className="mt-0.5 flex items-center gap-1.5 text-xs font-semibold text-teal-700 dark:text-teal-300">
               <Clock className="h-3.5 w-3.5" />
-              <span>প্রতি ৭ দিন (রবিবার সকাল ৯:০০ BST)</span>
+              <span>প্রতি রবিবার সকাল ৯:০০ BST</span>
             </div>
           </div>
         </div>
 
-        <div className="mt-3 rounded-lg bg-teal-50/80 p-2.5 text-[11px] text-teal-800 dark:bg-teal-950/40 dark:text-teal-200">
-          💡 <strong>পিসি বন্ধ থাকলেও কাজ করবে:</strong> GitHub Actions এবং Vercel Cron ব্যাকগ্রাউন্ডে ক্লাউড থেকে রিপোর্ট তৈরি করে পাঠায়, তাই আপনার কম্পিউটার বন্ধ থাকলেও ইমেইল চলে যাবে।
-        </div>
+        {/* Status Response Cards */}
+        {testEmailStatus?.type === 'success' && (
+          <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50/90 p-4 text-xs dark:border-emerald-900/60 dark:bg-emerald-950/40">
+            <div className="flex items-start gap-2.5">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <div className="space-y-1">
+                <div className="font-bold text-emerald-900 dark:text-emerald-200 text-sm">
+                  {language === 'bn' ? '✅ টেস্ট ইমেইল সফলভাবে পাঠানো হয়েছে!' : '✅ Test Email Successfully Sent!'}
+                </div>
+                <p className="text-emerald-800 dark:text-emerald-300">
+                  {language === 'bn'
+                    ? 'Resend API সার্ভার সফলভাবে ডেলিভারি নিশ্চিত করেছে।'
+                    : 'Resend API has accepted and dispatched the email.'}{' '}
+                  {testEmailStatus.id && (
+                    <span>
+                      Resend ID: <code className="rounded bg-emerald-100 px-1.5 py-0.5 font-mono text-[11px] font-bold dark:bg-emerald-900/80">{testEmailStatus.id}</code>
+                    </span>
+                  )}
+                </p>
+                <p className="text-[11px] text-emerald-700 dark:text-emerald-400">
+                  📬 {language === 'bn'
+                    ? `অনুগ্রহ করে আপনার ইনবক্স (বা স্প্যাম ফোল্ডার) চেক করুন: ${emailConfig.configuredRecipient}`
+                    : `Please check your inbox or spam folder at: ${emailConfig.configuredRecipient}`}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {testEmailStatus?.type === 'error' && (
+          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/90 p-4 text-xs dark:border-amber-900/60 dark:bg-amber-950/40">
+            <div className="flex items-start gap-2.5">
+              <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+              <div className="space-y-2 flex-1">
+                <div className="font-bold text-amber-900 dark:text-amber-200 text-sm">
+                  {testEmailStatus.restriction === 'resend_testing_restriction'
+                    ? (language === 'bn' ? '⚠️ Resend ফ্রি টেস্টিং সীমাবদ্ধতা নোটিশ' : '⚠️ Resend Testing Policy Restriction')
+                    : (language === 'bn' ? '❌ টেস্ট ইমেইল পাঠানো যায়নি' : '❌ Test Email Dispatch Failed')}
+                </div>
+
+                <p className="text-amber-800 dark:text-amber-300 leading-relaxed">
+                  {testEmailStatus.reason || testEmailStatus.message}
+                </p>
+
+                {testEmailStatus.restriction === 'resend_testing_restriction' && (
+                  <div className="rounded-lg border border-amber-300 bg-white/90 p-3.5 dark:border-amber-800 dark:bg-gray-900/90 space-y-2.5">
+                    <div className="font-bold text-gray-900 dark:text-white">
+                      💡 {language === 'bn' ? 'সমাধানের উপায়সমূহ:' : 'How to Resolve:'}
+                    </div>
+
+                    <div className="space-y-2 text-[11px] text-gray-700 dark:text-gray-300 leading-relaxed">
+                      <div>
+                        <strong>১. {language === 'bn' ? 'তাত্ক্ষণিক ফ্রি টেস্ট (Instant Free Test):' : 'Instant Free Test:'}</strong>{' '}
+                        {language === 'bn'
+                          ? `Resend এর ফ্রি টেস্টিং ডোমেন (${emailConfig.fromEmail}) দিয়ে শুধুমাত্র আপনার Resend একাউন্ট তৈরির মূল ইমেইল (${testEmailStatus.allowedOwnerEmail || 'abidasset@gmail.com'}) ঠিকানায় কোনো ডোমেন ভেরিফিকেশন ছাড়াই সরাসরি টেস্ট পাঠানো যায়।`
+                          : `With Resend's free test sender, you can immediately send test emails to your registered account address (${testEmailStatus.allowedOwnerEmail || 'abidasset@gmail.com'}) without needing a verified custom domain.`}
+                      </div>
+
+                      <div>
+                        <strong>২. {language === 'bn' ? 'যেকোনো ঠিকানায় পাঠানোর জন্য (Custom Domain):' : 'Send to Any Email:'}</strong>{' '}
+                        {language === 'bn'
+                          ? 'আপনার অন্য কোনো জিমেইল বা গ্রাহকের ঠিকানায় পাঠাতে চাইলে resend.com/domains এ গিয়ে আপনার নিজস্ব ডোমেন ভেরিফাই করুন এবং .env ফাইলে RESEND_FROM_EMAIL এ সেই ডোমেনের ইমেইল দিন।'
+                          : 'To send to any recipient, verify your custom domain at resend.com/domains and set RESEND_FROM_EMAIL to that domain in your .env file.'}
+                      </div>
+                    </div>
+
+                    {testEmailStatus.allowedOwnerEmail && (
+                      <div className="pt-1.5 flex flex-wrap items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="primary"
+                          size="sm"
+                          loading={isSendingTestEmail}
+                          onClick={() => handleSendTestEmail(testEmailStatus.allowedOwnerEmail)}
+                          leftIcon={<Send className="h-3.5 w-3.5" />}
+                        >
+                          {testEmailStatus.allowedOwnerEmail} {language === 'bn' ? 'এ টেস্ট পাঠান' : 'Send Test'}
+                        </Button>
+                        <span className="text-[11px] text-gray-500">
+                          {language === 'bn' ? '(একাউন্টের মূল ইমেইলে সাথে সাথে পৌঁছাবে)' : '(Instantly verified with your Resend account)'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="mt-4 flex flex-wrap items-center gap-2.5">
           <Button
             type="button"
             variant="primary"
             size="sm"
-            onClick={() => setWeeklyModalOpen(true)}
-            leftIcon={<Mail className="h-4 w-4" />}
+            loading={isSendingTestEmail}
+            onClick={() => handleSendTestEmail()}
+            leftIcon={<Send className="h-4 w-4" />}
           >
-            {language === 'bn' ? 'সাপ্তাহিক রিপোর্ট প্রিভিউ ও প্রেরণ' : 'Preview & Send Digest'}
+            {language === 'bn' ? 'টেস্ট ইমেইল পাঠান (Send Test Email)' : 'Send Test Email'}
           </Button>
 
           <Button
             type="button"
             variant="outline"
             size="sm"
-            loading={isSendingTestEmail}
-            onClick={handleSendTestEmail}
-            leftIcon={<Send className="h-4 w-4 text-teal-600" />}
+            onClick={() => setWeeklyModalOpen(true)}
+            leftIcon={<Mail className="h-4 w-4 text-teal-600" />}
           >
-            {language === 'bn' ? 'টেস্ট ইমেইল পাঠান' : 'Send Test Email'}
+            {language === 'bn' ? 'সাপ্তাহিক রিপোর্ট প্রিভিউ ও প্রেরণ' : 'Preview & Send Digest'}
           </Button>
         </div>
       </div>
@@ -797,7 +968,7 @@ export default function SettingsPage() {
       <WeeklyEmailModal
         isOpen={weeklyModalOpen}
         onClose={() => setWeeklyModalOpen(false)}
-        defaultEmail="abidasset@gmail.com"
+        defaultEmail={emailConfig.configuredRecipient || 'abidhossain52003@gmail.com'}
       />
     </div>
   );

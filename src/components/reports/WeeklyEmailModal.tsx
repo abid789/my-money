@@ -33,12 +33,23 @@ interface WeeklyEmailModalProps {
 export function WeeklyEmailModal({
   isOpen,
   onClose,
-  defaultEmail = 'abidasset@gmail.com',
+  defaultEmail,
 }: WeeklyEmailModalProps) {
   const { transactions, categories, accounts } = useData();
-  const [recipientEmail, setRecipientEmail] = useState(defaultEmail);
+  const [recipientEmail, setRecipientEmail] = useState(defaultEmail || 'abidhossain52003@gmail.com');
   const [isSending, setIsSending] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'preview'>('overview');
+
+  React.useEffect(() => {
+    fetch('/api/test-email')
+      .then((r) => r.json())
+      .then((cfg) => {
+        if (cfg?.configuredRecipient) {
+          setRecipientEmail(cfg.configuredRecipient);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const reportData = useMemo(() => {
     return generateWeeklyReportData(transactions, categories, accounts, recipientEmail);
@@ -75,25 +86,16 @@ export function WeeklyEmailModal({
         }),
       });
 
-      if (!res.ok) {
-        // Fallback or local dev notice
-        toast.success(
-          `রিপোর্ট তৈরি হয়েছে! ${recipientEmail}-এ পাঠানোর অনুরোধ গ্রহণ করা হয়েছে।`
-        );
-        return;
-      }
-
-      const result = await res.json();
-      if (result.success) {
+      const result = await res.json().catch(() => ({}));
+      if (res.ok && result.success) {
         toast.success(result.message || `রিপোর্ট ${recipientEmail}-এ সফলভাবে পাঠানো হয়েছে!`);
+        onClose();
       } else {
-        toast.error(result.error?.message || 'ইমেইল পাঠাতে সমস্যা হয়েছে');
+        const errorDetail = result.reason || result.message || result.error?.message || 'ইমেইল পাঠাতে সমস্যা হয়েছে';
+        toast.error(errorDetail, { duration: 6000 });
       }
-    } catch {
-      // If running on local Vite without serverless API, fallback gracefully
-      toast.success(
-        `সাপ্তাহিক রিপোর্ট তৈরি হয়েছে! Gmail বা ইমেইল ক্লায়েন্টে ড্রাফট খুলে সরাসরি পাঠাতে পারেন।`
-      );
+    } catch (err: any) {
+      toast.error(err?.message || 'সার্ভারে সংযোগ করা যায়নি');
     } finally {
       setIsSending(false);
     }
