@@ -37,7 +37,7 @@ export function AppLayout() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 w-full max-w-full overflow-x-hidden">
       {/* Desktop Sidebar */}
       <div className="hidden lg:block">
         <Sidebar />
@@ -46,7 +46,7 @@ export function AppLayout() {
       {/* Main content area */}
       <div
         className={clsx(
-          'flex min-h-screen flex-col transition-all duration-300',
+          'flex min-h-screen flex-col transition-all duration-300 min-w-0 w-full max-w-full overflow-x-hidden',
           'lg:ml-[260px]',
           sidebarCollapsed && 'lg:ml-[72px]'
         )}
@@ -55,8 +55,8 @@ export function AppLayout() {
         <Header />
 
         {/* Page content */}
-        <main className="flex-1 px-4 py-6 lg:px-6 lg:py-8">
-          <div className="mx-auto max-w-7xl">
+        <main className="flex-1 px-4 py-6 lg:px-6 lg:py-8 min-w-0 w-full max-w-full overflow-x-hidden">
+          <div className="mx-auto max-w-7xl min-w-0 w-full">
             <ErrorBoundary>
               <Outlet />
             </ErrorBoundary>

@@ -228,60 +228,58 @@ export function MonthComparisonSection() {
   const yearOptions = [2024, 2025, 2026, 2027, 2028];
 
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition-all hover:shadow-md dark:border-gray-800 dark:bg-gray-800/90">
-      {/* Header and Controls */}
-      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400">
-              <GitCompare className="h-4 w-4" />
-            </div>
-            <h3 className="text-base font-bold text-gray-900 dark:text-white">
-              {language === 'bn' ? 'মাসিক তুলনা (Month-to-Month Comparison)' : 'Month-to-Month Comparison'}
-            </h3>
-            <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300">
-              {mode === 'trend'
-                ? language === 'bn' ? 'ধারাবাহিক ট্রেন্ড' : 'Trend Analysis'
-                : language === 'bn' ? 'মুখোমুখি তুলনা' : 'Side-by-Side'}
-            </span>
+    <div className="w-full max-w-full min-w-0 overflow-hidden rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition-all hover:shadow-md dark:border-gray-800 dark:bg-gray-800/90">
+      {/* Header */}
+      <div className="mb-3.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400">
+            <GitCompare className="h-4 w-4" />
           </div>
-          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+          <h3 className="text-base font-bold text-gray-900 dark:text-white">
+            {language === 'bn' ? 'মাসিক তুলনা' : 'Month-to-Month Comparison'}
+          </h3>
+          <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-[10px] font-semibold text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300">
             {mode === 'trend'
-              ? language === 'bn'
-                ? 'বিগত মাসগুলোর সাথে আয়, ব্যয় ও সঞ্চয়ের শতাংশিক পরিবর্তন'
-                : 'Month-over-month growth, expense fluctuations, and net savings rate'
-              : language === 'bn'
-              ? `${sideBySideData.labelA} বনাম ${sideBySideData.labelB}-এর সরাসরি অর্থনৈতিক পার্থক্য`
-              : `Direct comparison between ${sideBySideData.labelA} and ${sideBySideData.labelB}`}
-          </p>
+              ? language === 'bn' ? 'ধারাবাহিক ট্রেন্ড' : 'Trend Analysis'
+              : language === 'bn' ? 'মুখোমুখি তুলনা' : 'Side-by-Side'}
+          </span>
         </div>
+        <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+          {mode === 'trend'
+            ? language === 'bn'
+              ? 'বিগত মাসগুলোর সাথে আয়, ব্যয় ও সঞ্চয়ের শতাংশিক পরিবর্তন'
+              : 'Month-over-month growth, expense fluctuations, and net savings rate'
+            : language === 'bn'
+            ? `${sideBySideData.labelA} বনাম ${sideBySideData.labelB}-এর সরাসরি অর্থনৈতিক পার্থক্য`
+            : `Direct comparison between ${sideBySideData.labelA} and ${sideBySideData.labelB}`}
+        </p>
+      </div>
 
-        {/* View Toggle Pill */}
-        <div className="flex items-center gap-2">
-          <div className="flex rounded-xl border border-gray-200 bg-gray-50/90 p-0.5 text-xs font-semibold dark:border-gray-700 dark:bg-gray-900/50">
-            <button
-              type="button"
-              onClick={() => setMode('trend')}
-              className={`rounded-lg px-2.5 py-1 text-xs transition-all ${
-                mode === 'trend'
-                  ? 'bg-indigo-600 text-white shadow-xs font-bold'
-                  : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
-              }`}
-            >
-              {language === 'bn' ? 'মাসিক ট্রেন্ড' : 'Monthly Trend'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode('sideBySide')}
-              className={`rounded-lg px-2.5 py-1 text-xs transition-all ${
-                mode === 'sideBySide'
-                  ? 'bg-indigo-600 text-white shadow-xs font-bold'
-                  : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
-              }`}
-            >
-              {language === 'bn' ? 'মুখোমুখি তুলনা' : 'Compare 2 Months'}
-            </button>
-          </div>
+      {/* View Toggle Pill */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="flex rounded-xl border border-gray-200 bg-gray-50/90 p-0.5 text-xs font-semibold dark:border-gray-700 dark:bg-gray-900/50">
+          <button
+            type="button"
+            onClick={() => setMode('trend')}
+            className={`rounded-lg px-2.5 py-1 text-xs transition-all ${
+              mode === 'trend'
+                ? 'bg-indigo-600 text-white shadow-xs font-bold'
+                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
+            }`}
+          >
+            {language === 'bn' ? 'মাসিক ট্রেন্ড' : 'Monthly Trend'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('sideBySide')}
+            className={`rounded-lg px-2.5 py-1 text-xs transition-all ${
+              mode === 'sideBySide'
+                ? 'bg-indigo-600 text-white shadow-xs font-bold'
+                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
+            }`}
+          >
+            {language === 'bn' ? 'মুখোমুখি তুলনা' : 'Compare 2 Months'}
+          </button>
         </div>
       </div>
 
@@ -350,7 +348,7 @@ export function MonthComparisonSection() {
 
       {/* Mode 2: Trend Duration Buttons */}
       {mode === 'trend' && (
-        <div className="mb-4 flex items-center justify-between text-xs">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2.5 text-xs">
           <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
             <span>{language === 'bn' ? 'পর্যবেক্ষণ সীমা:' : 'Display Span:'}</span>
             <button
@@ -553,7 +551,7 @@ export function MonthComparisonSection() {
       )}
 
       {/* Bar Chart Canvas */}
-      <div className="h-72 w-full">
+      <div className="h-72 w-full min-w-0 overflow-hidden">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={mode === 'trend' ? monthlyTimeline : sideBySideData.chartPoints}

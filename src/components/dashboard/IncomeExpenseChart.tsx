@@ -4,8 +4,10 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { formatCurrency, getDaysInMonth } from '@/lib/utils';
 import { calculateSavingsRate } from '@/lib/calculations';
 import {
+  ComposedChart,
   BarChart,
   Bar,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -356,46 +358,46 @@ export function IncomeExpenseChart() {
   const hasData = totals.income > 0 || totals.expense > 0;
 
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition-all hover:shadow-md dark:border-gray-800 dark:bg-gray-800/90">
-      {/* Top Header & Period Mode Switcher */}
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <h3 className="text-base font-bold text-gray-900 dark:text-white">
-              {t('dash.income_vs_expense')}
-            </h3>
-            <span className="rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-semibold text-teal-700 dark:bg-teal-950/50 dark:text-teal-300">
-              {periodMode === 'daily'
-                ? language === 'bn' ? 'দৈনিক' : 'Daily'
-                : periodMode === 'weekly'
-                ? language === 'bn' ? 'সাপ্তাহিক' : 'Weekly'
-                : periodMode === 'yearly'
-                ? language === 'bn' ? 'বার্ষিক' : 'Yearly'
-                : language === 'bn' ? 'মাসিক' : 'Monthly'}
-            </span>
-          </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            {periodMode === 'daily'
-              ? language === 'bn'
-                ? `${currentMonthName}-এর দিনভিত্তিক আয় ও খরচের হিসাব`
-                : `Day-by-day income and expenses for ${currentMonthName}`
-              : periodMode === 'weekly'
-              ? language === 'bn'
-                ? 'বিগত ৮ সপ্তাহের আয় ও ব্যয়ের গতিপ্রকৃতি'
-                : 'Weekly income vs expenses across past 8 weeks'
-              : periodMode === 'yearly'
-              ? language === 'bn'
-                ? 'বছরভিত্তিক সামগ্রিক আয় ও খরচের তুলনা'
-                : 'Year-by-year income vs expenses comparison'
-              : language === 'bn'
-              ? `বিগত ${monthlySpan} মাসের আয়, ব্যয় ও সঞ্চয় তুলনা`
-              : `Income, expenses, and savings across past ${monthlySpan} months`}
-          </p>
-        </div>
-
-        {/* Period Switcher Tabs & Series Toggle */}
+    <div className="w-full max-w-full min-w-0 overflow-hidden rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition-all hover:shadow-md dark:border-gray-800 dark:bg-gray-800/90">
+      {/* Top Header: Title, Period Mode Badge, & Description */}
+      <div className="mb-3.5">
         <div className="flex flex-wrap items-center gap-2">
-          {/* Period selector */}
+          <h3 className="text-base font-bold text-gray-900 dark:text-white">
+            {t('dash.income_vs_expense')}
+          </h3>
+          <span className="rounded-full bg-teal-50 px-2.5 py-0.5 text-[10px] font-semibold text-teal-700 dark:bg-teal-950/50 dark:text-teal-300">
+            {periodMode === 'daily'
+              ? language === 'bn' ? 'দৈনিক' : 'Daily'
+              : periodMode === 'weekly'
+              ? language === 'bn' ? 'সাপ্তাহিক' : 'Weekly'
+              : periodMode === 'yearly'
+              ? language === 'bn' ? 'বার্ষিক' : 'Yearly'
+              : language === 'bn' ? 'মাসিক' : 'Monthly'}
+          </span>
+        </div>
+        <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+          {periodMode === 'daily'
+            ? language === 'bn'
+              ? `${currentMonthName}-এর দিনভিত্তিক আয় ও খরচের হিসাব`
+              : `Day-by-day income and expenses for ${currentMonthName}`
+            : periodMode === 'weekly'
+            ? language === 'bn'
+              ? 'বিগত ৮ সপ্তাহের আয় ও ব্যয়ের গতিপ্রকৃতি'
+              : 'Weekly income vs expenses across past 8 weeks'
+            : periodMode === 'yearly'
+            ? language === 'bn'
+              ? 'বছরভিত্তিক সামগ্রিক আয় ও খরচের তুলনা'
+              : 'Year-by-year income vs expenses comparison'
+            : language === 'bn'
+            ? `বিগত ${monthlySpan} মাসের আয়, ব্যয় ও সঞ্চয় তুলনা`
+            : `Income, expenses, and savings across past ${monthlySpan} months`}
+        </p>
+      </div>
+
+      {/* Controls Toolbar: Time Frame Switcher, Monthly Span, & Net Savings Line Toggle */}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2.5">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Time Frame selector */}
           <div className="flex rounded-xl border border-gray-200 bg-gray-50/90 p-0.5 text-xs font-semibold dark:border-gray-700 dark:bg-gray-900/50">
             {(['daily', 'weekly', 'monthly', 'yearly'] as PeriodMode[]).map((mode) => (
               <button
@@ -419,32 +421,61 @@ export function IncomeExpenseChart() {
             ))}
           </div>
 
-          {/* Toggle Net Savings */}
-          <button
-            type="button"
-            onClick={() => setShowNetSavings(!showNetSavings)}
-            className={`flex items-center gap-1 rounded-xl border px-2.5 py-1 text-xs font-semibold transition-all ${
-              showNetSavings
-                ? 'border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300'
-                : 'border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400'
-            }`}
-            title="Toggle Net Savings Series"
-          >
-            <span
-              className={`h-2 w-2 rounded-full ${
-                showNetSavings ? 'bg-indigo-500' : 'bg-gray-400'
-              }`}
-            />
-            <span>{language === 'bn' ? 'নীট সঞ্চয়' : 'Net Savings'}</span>
-          </button>
+          {/* Monthly Span Switcher (6M / 12M) */}
+          {periodMode === 'monthly' && (
+            <div className="flex items-center gap-1 rounded-xl border border-gray-200 bg-gray-50/90 p-0.5 text-xs font-semibold dark:border-gray-700 dark:bg-gray-900/50">
+              <button
+                type="button"
+                onClick={() => setMonthlySpan(6)}
+                className={`rounded-lg px-2 py-1 text-xs transition-all ${
+                  monthlySpan === 6
+                    ? 'bg-teal-600 text-white shadow-xs font-bold'
+                    : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
+                }`}
+              >
+                6 {language === 'bn' ? 'মাস' : 'Mo'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setMonthlySpan(12)}
+                className={`rounded-lg px-2 py-1 text-xs transition-all ${
+                  monthlySpan === 12
+                    ? 'bg-teal-600 text-white shadow-xs font-bold'
+                    : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
+                }`}
+              >
+                12 {language === 'bn' ? 'মাস' : 'Mo'}
+              </button>
+            </div>
+          )}
         </div>
+
+        {/* Toggle Line / Net Savings Series */}
+        <button
+          type="button"
+          onClick={() => setShowNetSavings(!showNetSavings)}
+          className={`flex items-center gap-1.5 rounded-xl border px-2.5 py-1 text-xs font-semibold transition-all shrink-0 ${
+            showNetSavings
+              ? 'border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300'
+              : 'border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400'
+          }`}
+          title="Toggle Net Savings Series"
+        >
+          <span
+            className={`h-2 w-2 rounded-full ${
+              showNetSavings ? 'bg-indigo-500' : 'bg-gray-400'
+            }`}
+          />
+          <span>{language === 'bn' ? 'নীট সঞ্চয় লাইন' : 'Net Savings Line'}</span>
+        </button>
       </div>
 
-      {/* Sub-Header Toolbar: Controls for Daily or Monthly Span */}
+      {/* Daily Month/Year Navigator (Only in Daily view) */}
       {periodMode === 'daily' && (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-teal-100 bg-teal-50/50 p-2.5 dark:border-teal-950/40 dark:bg-teal-950/20">
-          <div className="flex items-center gap-2">
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1.5 rounded-xl border border-teal-100 bg-teal-50/50 p-1.5 dark:border-teal-950/40 dark:bg-teal-950/20">
             <button
+              type="button"
               onClick={handlePrevMonth}
               className="rounded-lg border border-gray-200 bg-white p-1 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
               title="Previous Month"
@@ -469,7 +500,7 @@ export function IncomeExpenseChart() {
               onChange={(e) => setDailyYear(Number(e.target.value))}
               className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs font-semibold text-gray-900 shadow-xs dark:border-gray-700 dark:bg-gray-800 dark:text-white"
             >
-              {[2024, 2025, 2026, 2027, 2028].map((y) => (
+              {[2023, 2024, 2025, 2026, 2027, 2028].map((y) => (
                 <option key={y} value={y}>
                   {y}
                 </option>
@@ -477,6 +508,7 @@ export function IncomeExpenseChart() {
             </select>
 
             <button
+              type="button"
               onClick={handleNextMonth}
               className="rounded-lg border border-gray-200 bg-white p-1 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
               title="Next Month"
@@ -484,79 +516,62 @@ export function IncomeExpenseChart() {
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>
-
-          <div className="flex items-center gap-3 text-xs">
-            <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-              +{formatCurrency(totals.income)}
-            </span>
-            <span className="font-semibold text-rose-600 dark:text-rose-400">
-              -{formatCurrency(totals.expense)}
-            </span>
-            <span
-              className={`font-bold ${
-                totals.net >= 0
-                  ? 'text-teal-700 dark:text-teal-300'
-                  : 'text-amber-600 dark:text-amber-400'
-              }`}
-            >
-              = {formatCurrency(totals.net)}
-            </span>
-          </div>
         </div>
       )}
 
-      {periodMode === 'monthly' && (
-        <div className="mb-3 flex items-center justify-between text-xs">
-          <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
-            <span>{language === 'bn' ? 'সময়কাল:' : 'Timeframe:'}</span>
-            <button
-              type="button"
-              onClick={() => setMonthlySpan(6)}
-              className={`rounded-md px-2 py-0.5 font-semibold transition ${
-                monthlySpan === 6
-                  ? 'bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-white'
-                  : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-200'
-              }`}
-            >
-              6 {language === 'bn' ? 'মাস' : 'Months'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setMonthlySpan(12)}
-              className={`rounded-md px-2 py-0.5 font-semibold transition ${
-                monthlySpan === 12
-                  ? 'bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-white'
-                  : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-200'
-              }`}
-            >
-              12 {language === 'bn' ? 'মাস' : 'Months'}
-            </button>
-          </div>
-
-          <div className="flex items-center gap-3 text-xs">
-            <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-              +{formatCurrency(totals.income)}
-            </span>
-            <span className="font-semibold text-rose-600 dark:text-rose-400">
-              -{formatCurrency(totals.expense)}
-            </span>
-            <span
-              className={`font-bold ${
-                totals.net >= 0
-                  ? 'text-indigo-600 dark:text-indigo-400'
-                  : 'text-amber-600 dark:text-amber-400'
-              }`}
-            >
-              = {formatCurrency(totals.net)}
-            </span>
-          </div>
+      {/* Dedicated Responsive Totals Summary Strip */}
+      <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-gray-100 bg-gray-50/80 px-3.5 py-2.5 text-xs dark:border-gray-800 dark:bg-gray-900/60">
+        {/* Total Income */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] font-medium text-gray-500 dark:text-gray-400">
+            {language === 'bn' ? 'মোট আয়:' : 'Total Income:'}
+          </span>
+          <span className="font-bold text-emerald-600 dark:text-emerald-400">
+            +{formatCurrency(totals.income)}
+          </span>
         </div>
-      )}
+
+        {/* Total Expense */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] font-medium text-gray-500 dark:text-gray-400">
+            {language === 'bn' ? 'মোট ব্যয়:' : 'Total Expense:'}
+          </span>
+          <span className="font-bold text-rose-600 dark:text-rose-400">
+            -{formatCurrency(totals.expense)}
+          </span>
+        </div>
+
+        {/* Net Total */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] font-medium text-gray-500 dark:text-gray-400">
+            {language === 'bn' ? 'নীট ব্যালেন্স:' : 'Net Total:'}
+          </span>
+          <span
+            className={`font-bold ${
+              totals.net >= 0
+                ? 'text-teal-700 dark:text-teal-300'
+                : 'text-amber-600 dark:text-amber-400'
+            }`}
+          >
+            {totals.net >= 0 ? '+' : ''}{formatCurrency(totals.net)}
+          </span>
+        </div>
+
+        {/* Savings Rate */}
+        {totals.income > 0 && (
+          <div className="sm:ml-auto flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400">
+            <span>{language === 'bn' ? 'সঞ্চয় হার:' : 'Savings Rate:'}</span>
+            <span className="font-bold text-indigo-600 dark:text-indigo-400">
+              {totals.savingsRate}%
+            </span>
+          </div>
+        )}
+      </div>
 
       {/* Chart Canvas or Empty State */}
       {!hasData ? (
         <div className="flex h-64 flex-col items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/50 p-6 text-center dark:border-gray-700 dark:bg-gray-900/30">
-          <BarChart3 className="h-8 w-8 text-gray-300 dark:text-gray-600 mb-2" />
+          <BarChart3 className="mb-2 h-8 w-8 text-gray-300 dark:text-gray-600" />
           <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">
             {language === 'bn' ? 'নির্বাচিত সময়ে কোনো লেনদেন নেই' : 'No transactions recorded for this period'}
           </p>
@@ -567,9 +582,9 @@ export function IncomeExpenseChart() {
           </p>
         </div>
       ) : (
-        <div className="h-68 w-full">
+        <div className="h-68 w-full min-w-0 overflow-hidden">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart
+            <ComposedChart
               data={activeChartData}
               margin={{ top: 12, right: 12, left: -16, bottom: 0 }}
             >
@@ -583,11 +598,6 @@ export function IncomeExpenseChart() {
                 <linearGradient id="modernExpenseGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#f43f5e" stopOpacity={1} />
                   <stop offset="100%" stopColor="#e11d48" stopOpacity={0.85} />
-                </linearGradient>
-                {/* Net Savings Gradient */}
-                <linearGradient id="modernNetGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#6366f1" stopOpacity={1} />
-                  <stop offset="100%" stopColor="#4f46e5" stopOpacity={0.85} />
                 </linearGradient>
               </defs>
 
@@ -698,14 +708,16 @@ export function IncomeExpenseChart() {
               />
 
               {showNetSavings && (
-                <Bar
+                <Line
+                  type="monotone"
                   dataKey={netLabel}
-                  fill="url(#modernNetGrad)"
-                  radius={[4, 4, 0, 0]}
-                  maxBarSize={periodMode === 'daily' ? 12 : 24}
+                  stroke="#6366f1"
+                  strokeWidth={2.5}
+                  dot={{ r: periodMode === 'daily' ? 1.5 : 3, fill: '#6366f1' }}
+                  activeDot={{ r: 5 }}
                 />
               )}
-            </BarChart>
+            </ComposedChart>
           </ResponsiveContainer>
         </div>
       )}

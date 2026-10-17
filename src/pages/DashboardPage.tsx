@@ -37,7 +37,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="w-full max-w-full min-w-0 overflow-x-hidden space-y-6">
       {/* Top Welcome & Actions Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -124,14 +124,22 @@ export default function DashboardPage() {
 
       {/* Visualizations Row 1: Income vs Expenses & Month-to-Month Comparison */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <IncomeExpenseChart />
-        <MonthComparisonSection />
+        <div className="w-full min-w-0">
+          <IncomeExpenseChart />
+        </div>
+        <div className="w-full min-w-0">
+          <MonthComparisonSection />
+        </div>
       </div>
 
       {/* Visualizations Row 2: Daily Spending Trend & Category Breakdown */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <SpendingTrendChart />
-        <CategoryBreakdownChart />
+        <div className="w-full min-w-0">
+          <SpendingTrendChart />
+        </div>
+        <div className="w-full min-w-0">
+          <CategoryBreakdownChart />
+        </div>
       </div>
 
       {/* Budget Utilization */}
