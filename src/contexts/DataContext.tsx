@@ -1267,8 +1267,9 @@ function setLocal<T>(key: string, data: T) {
     const remainingBudget = budgets
       .filter((b) => {
         if (!b.is_active) return false;
-        const budgetStart = b.start_date.split('T')[0];
-        const budgetEnd = b.end_date.split('T')[0];
+        const budgetStart = b.start_date ? b.start_date.split('T')[0] : '';
+        const budgetEnd = b.end_date ? b.end_date.split('T')[0] : '';
+        if (!budgetStart || !budgetEnd) return true;
         return budgetStart <= endDate && budgetEnd >= startDate;
       })
       .reduce((sum, b) => {

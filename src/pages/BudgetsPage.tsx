@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useData } from '@/contexts/DataContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { formatCurrency, calculatePercentageUsed } from '@/lib/utils';
 import type { Budget } from '@/types';
 import { Button } from '@/components/ui/Button';
@@ -25,6 +26,7 @@ import toast from 'react-hot-toast';
 
 export default function BudgetsPage() {
   const { budgets, categories, addBudget, updateBudget, deleteBudget, loading } = useData();
+  const { language } = useLanguage();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -55,15 +57,19 @@ export default function BudgetsPage() {
     setAmount(String(b.amount));
     setCategoryId(b.category_id || '');
     setPeriod(b.period);
-    setStartDate(b.start_date);
-    setEndDate(b.end_date);
+    setStartDate(b.start_date || format(new Date(), 'yyyy-MM-01'));
+    setEndDate(b.end_date || format(new Date(), 'yyyy-MM-28'));
     setModalOpen(true);
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !amount || parseFloat(amount) <= 0) {
-      toast.error('Please enter a valid name and amount');
+      toast.error(
+        language === 'bn'
+          ? 'অনুগ্রহ করে সঠিক নাম এবং বাজেটের পরিমাণ লিখুন'
+          : 'Please enter a valid name and amount'
+      );
       return;
     }
 
@@ -85,14 +91,14 @@ export default function BudgetsPage() {
 
       if (editingBudget) {
         await updateBudget(editingBudget.id, budgetData);
-        toast.success('Budget updated');
+        toast.success(language === 'bn' ? 'বাজেট আপডেট করা হয়েছে' : 'Budget updated');
       } else {
         await addBudget(budgetData);
-        toast.success('Budget created');
+        toast.success(language === 'bn' ? 'নতুন বাজেট সফলভাবে তৈরি হয়েছে' : 'Budget created');
       }
       setModalOpen(false);
     } catch {
-      toast.error('Failed to save budget');
+      toast.error(language === 'bn' ? 'বাজেট সংরক্ষণ করতে ব্যর্থ হয়েছে' : 'Failed to save budget');
     } finally {
       setIsSubmitting(false);
     }
@@ -102,9 +108,9 @@ export default function BudgetsPage() {
     if (!deleteId) return;
     try {
       await deleteBudget(deleteId);
-      toast.success('Budget removed');
+      toast.success(language === 'bn' ? 'বাজেট মুছে ফেলা হয়েছে' : 'Budget removed');
     } catch {
-      toast.error('Failed to remove budget');
+      toast.error(language === 'bn' ? 'মুছে ফেলতে সমস্যা হয়েছে' : 'Failed to remove budget');
     } finally {
       setDeleteId(null);
     }
@@ -119,10 +125,12 @@ export default function BudgetsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-2xl">
-            Smart Budget Management
+            {language === 'bn' ? 'স্মার্ট বাজেট পরিকল্পনা' : 'Smart Budget Management'}
           </h1>
           <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-            Set and track spending limits by category, month, or custom period.
+            {language === 'bn'
+              ? 'খাতভিত্তিক বা মাসিক খরচের সর্বোচ্চ সীমা নির্ধারণ করুন এবং ট্র্যাক রাখুন।'
+              : 'Set and track spending limits by category, month, or custom period.'}
           </p>
         </div>
 
@@ -131,7 +139,7 @@ export default function BudgetsPage() {
           onClick={openCreateModal}
           leftIcon={<PlusCircle className="h-4 w-4" />}
         >
-          Add Budget
+          {language === 'bn' ? '+ নতুন বাজেট যোগ করুন' : 'Add Budget'}
         </Button>
       </div>
 
@@ -139,16 +147,20 @@ export default function BudgetsPage() {
       {exceededBudgets.length > 0 && (
         <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-900/60 dark:bg-rose-950/30">
           <div className="flex items-start gap-3">
-            <AlertTriangle className="h-5 w-5 shrink-0 text-rose-600 dark:text-rose-400 mt-0.5" />
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-rose-600 dark:text-rose-400" />
             <div className="space-y-1">
               <h4 className="text-sm font-semibold text-rose-900 dark:text-rose-200">
-                Budget Alert: {exceededBudgets.length} limit{exceededBudgets.length > 1 ? 's' : ''} exceeded!
+                {language === 'bn'
+                  ? `বাজেট সতর্কতা: ${exceededBudgets.length}টি খাতে খরচের সীমা অতিক্রান্ত!`
+                  : `Budget Alert: ${exceededBudgets.length} limit${exceededBudgets.length > 1 ? 's' : ''} exceeded!`}
               </h4>
               <p className="text-xs text-rose-700 dark:text-rose-300">
-                {exceededBudgets.map((b) => {
-                  const over = Number(b.spent || 0) - Number(b.amount);
-                  return `"${b.name}" is over budget by ${formatCurrency(over)}`;
-                }).join(' • ')}
+                {exceededBudgets
+                  .map((b) => {
+                    const over = Number(b.spent || 0) - Number(b.amount);
+                    return `"${b.name}" ${language === 'bn' ? 'সীমা ছাড়িয়েছে' : 'is over budget by'} ${formatCurrency(over)}`;
+                  })
+                  .join(' • ')}
               </p>
             </div>
           </div>
@@ -159,11 +171,15 @@ export default function BudgetsPage() {
       {budgets.length === 0 ? (
         <div className="rounded-2xl border border-gray-100 bg-white p-8 shadow-sm dark:border-gray-800 dark:bg-gray-800/90">
           <EmptyState
-            icon={Target}
-            title="No budgets set yet"
-            description="Create your first budget limit for Groceries, Dining, Rent, or an overall monthly limit."
+            icon={<Target className="h-10 w-10 text-gray-300 dark:text-gray-600" />}
+            title={language === 'bn' ? 'কোনো বাজেট তৈরি করা হয়নি' : 'No budgets set yet'}
+            description={
+              language === 'bn'
+                ? 'বাজার, রেস্টুরেন্ট, বাসা ভাড়া বা সম্পূর্ণ মাসের জন্য আপনার প্রথম বাজেট সীমা তৈরি করুন।'
+                : 'Create your first budget limit for Groceries, Dining, Rent, or an overall monthly limit.'
+            }
             action={{
-              label: 'Create Budget',
+              label: language === 'bn' ? '+ বাজেট তৈরি করুন' : 'Create Budget',
               onClick: openCreateModal,
             }}
           />
@@ -172,14 +188,16 @@ export default function BudgetsPage() {
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {budgets.map((budget) => {
             const spent = Number(budget.spent || 0);
-            const limit = Number(budget.amount);
+            const limit = Number(budget.amount || 1);
             const remaining = limit - spent;
             const pct = calculatePercentageUsed(spent, limit);
             const isExceeded = spent > limit;
 
             let daysLeft = 0;
             try {
-              daysLeft = Math.max(0, differenceInDays(parseISO(budget.end_date), new Date()));
+              if (budget.end_date) {
+                daysLeft = Math.max(0, differenceInDays(parseISO(budget.end_date), new Date()));
+              }
             } catch {
               daysLeft = 0;
             }
@@ -205,7 +223,7 @@ export default function BudgetsPage() {
                       <div className="mt-0.5 flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
                         <span className="capitalize">{budget.period}</span>
                         <span>•</span>
-                        <span>{budget.category?.name || 'All Categories'}</span>
+                        <span>{budget.category?.name || (language === 'bn' ? 'সকল খাত' : 'All Categories')}</span>
                       </div>
                     </div>
 
@@ -213,14 +231,14 @@ export default function BudgetsPage() {
                       <button
                         onClick={() => openEditModal(budget)}
                         className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700"
-                        title="Edit"
+                        title={language === 'bn' ? 'সম্পাদনা' : 'Edit'}
                       >
                         <Edit2 className="h-3.5 w-3.5" />
                       </button>
                       <button
                         onClick={() => setDeleteId(budget.id)}
                         className="rounded p-1 text-gray-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40"
-                        title="Delete"
+                        title={language === 'bn' ? 'মুছে ফেলুন' : 'Delete'}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
@@ -230,13 +248,13 @@ export default function BudgetsPage() {
                   <div className="mt-4 space-y-2">
                     <div className="flex items-baseline justify-between text-xs">
                       <span className="text-gray-500 dark:text-gray-400">
-                        Spent:{' '}
+                        {language === 'bn' ? 'খরচ:' : 'Spent:'}{' '}
                         <strong className="text-gray-900 dark:text-white">
                           {formatCurrency(spent)}
                         </strong>
                       </span>
                       <span className="font-bold text-gray-900 dark:text-white">
-                        Limit: {formatCurrency(limit)}
+                        {language === 'bn' ? 'সীমা:' : 'Limit:'} {formatCurrency(limit)}
                       </span>
                     </div>
 
@@ -252,8 +270,12 @@ export default function BudgetsPage() {
                         )}
                       >
                         {isExceeded
-                          ? `Exceeded by ${formatCurrency(Math.abs(remaining))}`
-                          : `Remaining: ${formatCurrency(remaining)}`}
+                          ? (language === 'bn'
+                              ? `সীমা ছাড়িয়েছে: ${formatCurrency(Math.abs(remaining))}`
+                              : `Exceeded by ${formatCurrency(Math.abs(remaining))}`)
+                          : (language === 'bn'
+                              ? `অবশিষ্ট: ${formatCurrency(remaining)}`
+                              : `Remaining: ${formatCurrency(remaining)}`)}
                       </span>
                       <span
                         className={clsx(
@@ -274,15 +296,17 @@ export default function BudgetsPage() {
                 <div className="mt-5 flex items-center justify-between border-t border-gray-100 pt-3 text-[11px] text-gray-400 dark:border-gray-700">
                   <span className="flex items-center gap-1">
                     <Calendar className="h-3 w-3" />
-                    {daysLeft > 0 ? `${daysLeft} days remaining` : 'Period ended'}
+                    {daysLeft > 0
+                      ? (language === 'bn' ? `${daysLeft} দিন বাকি` : `${daysLeft} days remaining`)
+                      : (language === 'bn' ? 'মেয়াদ সমাপ্ত' : 'Period ended')}
                   </span>
                   {isExceeded ? (
                     <span className="flex items-center gap-1 font-semibold text-rose-500">
-                      <AlertCircle className="h-3 w-3" /> Over limit
+                      <AlertCircle className="h-3 w-3" /> {language === 'bn' ? 'সীমার বাইরে' : 'Over limit'}
                     </span>
                   ) : (
                     <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                      <CheckCircle2 className="h-3 w-3" /> On track
+                      <CheckCircle2 className="h-3 w-3" /> {language === 'bn' ? 'নিয়ন্ত্রণে আছে' : 'On track'}
                     </span>
                   )}
                 </div>
@@ -296,13 +320,17 @@ export default function BudgetsPage() {
       <Modal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editingBudget ? 'Edit Budget' : 'Create New Budget'}
+        title={
+          editingBudget
+            ? (language === 'bn' ? 'বাজেট সম্পাদনা' : 'Edit Budget')
+            : (language === 'bn' ? 'নতুন বাজেট তৈরি করুন' : 'Create New Budget')
+        }
         size="md"
       >
         <form onSubmit={handleSave} className="space-y-4">
           <Input
-            label="Budget Name *"
-            placeholder="e.g. Monthly Food & Dining, Total Monthly"
+            label={language === 'bn' ? 'বাজেটের নাম *' : 'Budget Name *'}
+            placeholder={language === 'bn' ? 'যেমন: মাসিক বাজার ও খাবার খরচ' : 'e.g. Monthly Food & Dining, Total Monthly'}
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
@@ -312,7 +340,7 @@ export default function BudgetsPage() {
             type="number"
             step="1"
             min="1"
-            label="Budget Limit (৳ BDT) *"
+            label={language === 'bn' ? 'বাজেট সীমা (৳ BDT) *' : 'Budget Limit (৳ BDT) *'}
             placeholder="e.g. 5000"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
@@ -320,11 +348,11 @@ export default function BudgetsPage() {
           />
 
           <Select
-            label="Apply to Category (Optional)"
+            label={language === 'bn' ? 'নির্দিষ্ট খাতের বাজেট (ঐচ্ছিক)' : 'Apply to Category (Optional)'}
             value={categoryId}
             onChange={(e) => setCategoryId(e.target.value)}
             options={[
-              { value: '', label: 'All Categories (Overall Budget)' },
+              { value: '', label: language === 'bn' ? 'সকল খাত (সার্বিক মাসিক বাজেট)' : 'All Categories (Overall Budget)' },
               ...categories
                 .filter((c) => c.type === 'expense')
                 .map((c) => ({ value: c.id, label: c.name })),
@@ -332,14 +360,14 @@ export default function BudgetsPage() {
           />
 
           <Select
-            label="Period"
+            label={language === 'bn' ? 'মেয়াদ' : 'Period'}
             value={period}
             onChange={(e) => setPeriod(e.target.value as any)}
             options={[
-              { value: 'monthly', label: 'Monthly' },
-              { value: 'weekly', label: 'Weekly' },
-              { value: 'yearly', label: 'Yearly' },
-              { value: 'custom', label: 'Custom Date Range' },
+              { value: 'monthly', label: language === 'bn' ? 'মাসিক (Monthly)' : 'Monthly' },
+              { value: 'weekly', label: language === 'bn' ? 'সাপ্তাহিক (Weekly)' : 'Weekly' },
+              { value: 'yearly', label: language === 'bn' ? 'বার্ষিক (Yearly)' : 'Yearly' },
+              { value: 'custom', label: language === 'bn' ? 'কাস্টম তারিখ' : 'Custom Date Range' },
             ]}
           />
 
@@ -347,13 +375,13 @@ export default function BudgetsPage() {
             <div className="grid grid-cols-2 gap-3">
               <Input
                 type="date"
-                label="Start Date"
+                label={language === 'bn' ? 'শুরুর তারিখ' : 'Start Date'}
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
               />
               <Input
                 type="date"
-                label="End Date"
+                label={language === 'bn' ? 'শেষ তারিখ' : 'End Date'}
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
               />
@@ -366,10 +394,12 @@ export default function BudgetsPage() {
               variant="outline"
               onClick={() => setModalOpen(false)}
             >
-              Cancel
+              {language === 'bn' ? 'বাতিল' : 'Cancel'}
             </Button>
             <Button type="submit" variant="primary" loading={isSubmitting}>
-              {editingBudget ? 'Save Changes' : 'Create Budget'}
+              {editingBudget
+                ? (language === 'bn' ? 'পরিবর্তন সংরক্ষণ' : 'Save Changes')
+                : (language === 'bn' ? 'বাজেট তৈরি করুন' : 'Create Budget')}
             </Button>
           </div>
         </form>
@@ -379,9 +409,13 @@ export default function BudgetsPage() {
         isOpen={!!deleteId}
         onClose={() => setDeleteId(null)}
         onConfirm={handleDelete}
-        title="Remove Budget"
-        message="Are you sure you want to remove this budget? Your recorded transactions will not be deleted."
-        confirmText="Remove"
+        title={language === 'bn' ? 'বাজেট মুছে ফেলবেন?' : 'Remove Budget'}
+        message={
+          language === 'bn'
+            ? 'আপনি কি নিশ্চিত যে এই বাজেট সীমাটি মুছে ফেলতে চান? আপনার সংরক্ষিত পূর্বের কোনো লেনদেন মোছা হবে না।'
+            : 'Are you sure you want to remove this budget? Your recorded transactions will not be deleted.'
+        }
+        confirmText={language === 'bn' ? 'হ্যাঁ, মুছে ফেলুন' : 'Remove'}
         variant="danger"
       />
     </div>

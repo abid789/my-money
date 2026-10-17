@@ -196,7 +196,7 @@ export default function SavingsPage() {
       {savingsGoals.length === 0 ? (
         <div className="rounded-2xl border border-gray-100 bg-white p-8 shadow-sm dark:border-gray-800 dark:bg-gray-800/90">
           <EmptyState
-            icon={PiggyBank}
+            icon={<PiggyBank className="h-10 w-10 text-gray-300 dark:text-gray-600" />}
             title="No savings goals yet"
             description="Create your first goal, e.g. Emergency Fund of ৳20,000 or New Laptop fund."
             action={{

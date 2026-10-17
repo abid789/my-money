@@ -1,5 +1,5 @@
 import { clsx } from 'clsx';
-import { ReactNode } from 'react';
+import { isValidElement, type ReactNode, type ElementType } from 'react';
 import { Button } from '@/components/ui/Button';
 
 interface EmptyStateProps {
@@ -29,11 +29,18 @@ export function EmptyState({
 
   const renderIcon = () => {
     if (!icon) return null;
-    if (typeof icon === 'function') {
-      const IconComponent = icon;
+    if (isValidElement(icon)) {
+      return icon;
+    }
+    // Handle functional components and forwardRef components (like Lucide icons)
+    if (
+      typeof icon === 'function' ||
+      (typeof icon === 'object' && icon !== null && ('render' in icon || '$$typeof' in icon))
+    ) {
+      const IconComponent = icon as ElementType;
       return <IconComponent className="h-10 w-10 text-gray-300 dark:text-gray-600" />;
     }
-    return icon;
+    return null;
   };
 
   return (
@@ -44,7 +51,7 @@ export function EmptyState({
       )}
     >
       {icon && (
-        <div className="mb-4 text-gray-300 dark:text-gray-600" aria-hidden="true">
+        <div className="mb-4 flex items-center justify-center text-gray-300 dark:text-gray-600" aria-hidden="true">
           {renderIcon()}
         </div>
       )}

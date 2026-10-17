@@ -144,7 +144,7 @@ export default function RecurringPage() {
       {recurringTransactions.length === 0 ? (
         <div className="rounded-2xl border border-gray-100 bg-white p-8 shadow-sm dark:border-gray-800 dark:bg-gray-800/90">
           <EmptyState
-            icon={Repeat}
+            icon={<Repeat className="h-10 w-10 text-gray-300 dark:text-gray-600" />}
             title="No recurring transactions set"
             description="Add recurring rules like monthly WiFi bill, apartment rent, tuition salary, or Netflix subscription."
             action={{

@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { MobileNav } from '@/components/layout/MobileNav';
 import { Header } from '@/components/layout/Header';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import clsx from 'clsx';
 
 export function AppLayout() {
@@ -56,7 +57,9 @@ export function AppLayout() {
         {/* Page content */}
         <main className="flex-1 px-4 py-6 lg:px-6 lg:py-8">
           <div className="mx-auto max-w-7xl">
-            <Outlet />
+            <ErrorBoundary>
+              <Outlet />
+            </ErrorBoundary>
           </div>
         </main>
 
