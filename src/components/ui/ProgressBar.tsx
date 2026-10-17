@@ -6,6 +6,7 @@ interface ProgressBarProps {
   showLabel?: boolean;
   showPercentage?: boolean;
   className?: string;
+  colorScheme?: 'budget' | 'teal' | 'emerald';
 }
 
 const sizeStyles: Record<string, string> = {
@@ -14,10 +15,21 @@ const sizeStyles: Record<string, string> = {
   lg: 'h-4',
 };
 
-function getBarColor(value: number): string {
-  if (value < 50) return 'bg-green-500 dark:bg-green-400';
-  if (value < 75) return 'bg-amber-500 dark:bg-amber-400';
-  if (value < 90) return 'bg-orange-500 dark:bg-orange-400';
+/**
+ * Standard Budget & Progress Thresholds:
+ * < 80%: Healthy green/teal
+ * 80% - 99.9%: Warning amber/yellow
+ * >= 100%: Over-budget red
+ */
+function getBarColor(value: number, scheme?: 'budget' | 'teal' | 'emerald'): string {
+  if (scheme === 'teal') {
+    return 'bg-teal-500 dark:bg-teal-400';
+  }
+  if (scheme === 'emerald') {
+    return 'bg-emerald-500 dark:bg-emerald-400';
+  }
+  if (value < 80) return 'bg-teal-500 dark:bg-teal-400';
+  if (value < 100) return 'bg-amber-500 dark:bg-amber-400';
   return 'bg-red-500 dark:bg-red-400';
 }
 
@@ -27,13 +39,16 @@ export function ProgressBar({
   showLabel = false,
   showPercentage,
   className,
+  colorScheme = 'budget',
 }: ProgressBarProps) {
   const shouldShowLabel = showLabel || (showPercentage ?? false);
-  const clampedValue = Math.min(100, Math.max(0, value));
+  const clampedValue = Math.max(0, value);
+  const displayPercentage = Math.round(value);
+  const barWidth = Math.min(100, clampedValue);
 
   return (
     <div className={clsx('w-full', className)}>
-      {showLabel && (
+      {shouldShowLabel && (
         <div className="mb-1.5 flex items-center justify-between">
           <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
             Progress
@@ -41,12 +56,14 @@ export function ProgressBar({
           <span
             className={clsx(
               'text-xs font-semibold',
-              clampedValue >= 90
-                ? 'text-red-600 dark:text-red-400'
+              value >= 100
+                ? 'text-red-600 dark:text-red-400 font-bold'
+                : value >= 80
+                ? 'text-amber-600 dark:text-amber-400'
                 : 'text-gray-700 dark:text-gray-300'
             )}
           >
-            {Math.round(clampedValue)}%
+            {displayPercentage}%
           </span>
         </div>
       )}
@@ -57,17 +74,17 @@ export function ProgressBar({
           sizeStyles[size]
         )}
         role="progressbar"
-        aria-valuenow={clampedValue}
+        aria-valuenow={Math.min(100, Math.round(clampedValue))}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-label={`${Math.round(clampedValue)}% progress`}
+        aria-label={`${displayPercentage}% progress`}
       >
         <div
           className={clsx(
             'h-full rounded-full transition-all duration-500 ease-out',
-            getBarColor(clampedValue)
+            getBarColor(value, colorScheme)
           )}
-          style={{ width: `${clampedValue}%` }}
+          style={{ width: `${barWidth}%` }}
         />
       </div>
     </div>

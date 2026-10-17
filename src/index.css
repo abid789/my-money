@@ -46,3 +46,188 @@ input[type='number']::-webkit-outer-spin-button {
 input[type='number'] {
   -moz-appearance: textfield;
 }
+
+/* ==========================================================================
+   PART 1 & 2: 7 BUILT-IN PRIMARY THEMES & PERSONALIZATION STYLES
+   ========================================================================== */
+
+/* ─── 1. Classic Original (Default - Pristine Original Style) ─────────────── */
+[data-theme='classic'] {
+  --theme-accent: #14b8a6;
+}
+
+/* ─── 2. Samsung One UI Light ────────────────────────────────────────────── */
+[data-theme='one-ui-light'] body {
+  background-color: #f4f6fa !important;
+  color: #1e293b !important;
+}
+[data-theme='one-ui-light'] .rounded-2xl {
+  border-radius: 22px !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 4px 16px -2px rgba(12, 102, 228, 0.05), 0 2px 6px -1px rgba(0, 0, 0, 0.03) !important;
+}
+[data-theme='one-ui-light'] .rounded-xl {
+  border-radius: 16px !important;
+}
+
+/* ─── 3. Samsung One UI AMOLED Dark ──────────────────────────────────────── */
+[data-theme='one-ui-amoled'],
+[data-theme='one-ui-amoled'] body {
+  background-color: #000000 !important;
+  color: #f8fafc !important;
+}
+[data-theme='one-ui-amoled'] .dark\:bg-gray-900,
+[data-theme='one-ui-amoled'] .dark\:bg-gray-800,
+[data-theme='one-ui-amoled'] .dark\:bg-gray-800\/80,
+[data-theme='one-ui-amoled'] .dark\:bg-gray-800\/90 {
+  background-color: #0e0e11 !important;
+}
+[data-theme='one-ui-amoled'] .rounded-2xl {
+  border-radius: 22px !important;
+  border-color: #222228 !important;
+  box-shadow: 0 0 0 1px #1a1a20 !important;
+}
+[data-theme='one-ui-amoled'] .dark\:border-gray-700,
+[data-theme='one-ui-amoled'] .dark\:border-gray-800 {
+  border-color: #1f1f26 !important;
+}
+
+/* ─── 4. Ocean Blue Premium ──────────────────────────────────────────────── */
+[data-theme='ocean-blue'],
+[data-theme='ocean-blue'] body {
+  background-color: #081026 !important;
+  color: #f1f5f9 !important;
+}
+[data-theme='ocean-blue'] .dark\:bg-gray-900 {
+  background-color: #081026 !important;
+}
+[data-theme='ocean-blue'] .dark\:bg-gray-800,
+[data-theme='ocean-blue'] .dark\:bg-gray-800\/80,
+[data-theme='ocean-blue'] .dark\:bg-gray-800\/90 {
+  background-color: #0f1c3d !important;
+}
+[data-theme='ocean-blue'] .dark\:border-gray-700,
+[data-theme='ocean-blue'] .dark\:border-gray-800 {
+  border-color: #1c3161 !important;
+}
+
+/* ─── 5. Pastel Premium ──────────────────────────────────────────────────── */
+[data-theme='pastel-premium']:not(.dark) body {
+  background-color: #faf7fd !important;
+}
+[data-theme='pastel-premium'] .rounded-2xl {
+  border-radius: 20px !important;
+  box-shadow: 0 8px 24px -4px rgba(139, 92, 246, 0.07) !important;
+}
+
+/* ─── 6. Minimal Monochrome ──────────────────────────────────────────────── */
+[data-theme='minimal-mono'] {
+  filter: grayscale(100%);
+}
+
+/* ─── 7. Apple iOS 27-Inspired Glassmorphism ─────────────────────────────── */
+[data-theme='ios-glass'] .rounded-2xl,
+[data-theme='ios-glass'] .rounded-xl {
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+}
+[data-theme='ios-glass']:not(.dark) .bg-white {
+  background-color: rgba(255, 255, 255, 0.78) !important;
+  border-color: rgba(255, 255, 255, 0.6) !important;
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.08) !important;
+}
+[data-theme='ios-glass'].dark .dark\:bg-gray-800,
+[data-theme='ios-glass'].dark .dark\:bg-gray-800\/80,
+[data-theme='ios-glass'].dark .dark\:bg-gray-800\/90 {
+  background-color: rgba(20, 24, 38, 0.72) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37) !important;
+}
+
+/* ─── Layout Density ─────────────────────────────────────────────────────── */
+[data-density='compact'] .p-6 {
+  padding: 1rem !important;
+}
+[data-density='compact'] .space-y-6 > * + * {
+  margin-top: 1rem !important;
+}
+[data-density='compact'] .py-3 {
+  padding-top: 0.5rem !important;
+  padding-bottom: 0.5rem !important;
+}
+[data-density='spacious'] .p-6 {
+  padding: 2rem !important;
+}
+[data-density='spacious'] .space-y-6 > * + * {
+  margin-top: 2rem !important;
+}
+
+/* ─── Font Size ──────────────────────────────────────────────────────────── */
+[data-font-size='small'] {
+  font-size: 14.5px;
+}
+[data-font-size='normal'] {
+  font-size: 16px;
+}
+[data-font-size='large'] {
+  font-size: 17.5px;
+}
+
+/* ─── Card Corner Radius ─────────────────────────────────────────────────── */
+[data-card-radius='sharp'] .rounded-2xl,
+[data-card-radius='sharp'] .rounded-xl,
+[data-card-radius='sharp'] .rounded-lg {
+  border-radius: 4px !important;
+}
+[data-card-radius='rounded'] .rounded-2xl {
+  border-radius: 16px !important;
+}
+[data-card-radius='extra-rounded'] .rounded-2xl {
+  border-radius: 28px !important;
+}
+[data-card-radius='extra-rounded'] .rounded-xl {
+  border-radius: 20px !important;
+}
+
+/* ─── Privacy Balance Blur ───────────────────────────────────────────────── */
+[data-privacy-blur='true'] .privacy-blur-target {
+  filter: blur(8px) !important;
+  user-select: none !important;
+  pointer-events: none;
+  transition: filter 0.25s ease;
+}
+
+/* ─── Clean Bank-Statement Print Styles ─────────────────────────────────── */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 12pt !important;
+  }
+  header,
+  aside,
+  nav,
+  .no-print,
+  button,
+  .fixed,
+  .sticky {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  .rounded-2xl,
+  .rounded-xl {
+    border-radius: 0 !important;
+    border: 1px solid #d1d5db !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    page-break-inside: avoid;
+  }
+  .privacy-blur-target {
+    filter: none !important;
+  }
+}

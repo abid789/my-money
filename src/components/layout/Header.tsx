@@ -28,6 +28,9 @@ import {
   CloudOff,
   Loader2,
   AlertCircle,
+  Eye,
+  EyeOff,
+  Lock,
 } from 'lucide-react';
 
 const routeTitles: Record<string, { en: string; bn: string }> = {
@@ -55,7 +58,14 @@ export function Header({ onToggleMobileSidebar }: HeaderProps) {
   const navigate = useNavigate();
   const { user, profile, signOut, isConfigured } = useAuth();
   const { syncStatus, lastSyncedAt, triggerSync } = useData();
-  const { theme, toggleTheme } = useTheme();
+  const {
+    theme,
+    toggleTheme,
+    isPrivacyBlurEnabled,
+    togglePrivacyBlur,
+    isPinEnabled,
+    lockApp,
+  } = useTheme();
   const { language, toggleLanguage, t } = useLanguage();
   const { unreadCount } = useNotifications();
   const [showNotifications, setShowNotifications] = useState(false);
@@ -189,6 +199,45 @@ export function Header({ onToggleMobileSidebar }: HeaderProps) {
             )}
           </button>
 
+          {/* Privacy Balance Blur Toggle */}
+          <button
+            type="button"
+            onClick={togglePrivacyBlur}
+            className={clsx(
+              'rounded-lg p-2 transition-colors',
+              isPrivacyBlurEnabled
+                ? 'bg-teal-50 text-teal-600 dark:bg-teal-950/60 dark:text-teal-400'
+                : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-300'
+            )}
+            title={
+              isPrivacyBlurEnabled
+                ? language === 'bn'
+                  ? 'ব্যালেন্স প্রদর্শন করুন (প্রাইভেসি ব্লার বন্ধ)'
+                  : 'Reveal Balances (Privacy Blur Active)'
+                : language === 'bn'
+                ? 'ব্যালেন্স গোপন করুন (প্রাইভেসি ব্লার চালু)'
+                : 'Hide Sensitive Balances (Privacy Blur)'
+            }
+          >
+            {isPrivacyBlurEnabled ? (
+              <EyeOff className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+            ) : (
+              <Eye className="h-5 w-5" />
+            )}
+          </button>
+
+          {/* Quick PIN Lock Button (Only when PIN is enabled) */}
+          {isPinEnabled && (
+            <button
+              type="button"
+              onClick={lockApp}
+              className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-teal-600 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-teal-400"
+              title={language === 'bn' ? 'কুইক পিন দিয়ে এখনই লক করুন' : 'Lock App with Quick PIN'}
+            >
+              <Lock className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+            </button>
+          )}
+
           {/* Quick add button - hidden on mobile (they have the FAB) */}
           <button
             onClick={() => navigate('/add-transaction')}
@@ -265,6 +314,18 @@ export function Header({ onToggleMobileSidebar }: HeaderProps) {
                     <Settings className="h-4 w-4 text-gray-400" />
                     Settings
                   </button>
+                  {isPinEnabled && (
+                    <button
+                      onClick={() => {
+                        setShowUserMenu(false);
+                        lockApp();
+                      }}
+                      className="flex w-full items-center gap-3 px-4 py-2 text-sm text-teal-600 transition-colors hover:bg-teal-50 dark:text-teal-400 dark:hover:bg-teal-950/40"
+                    >
+                      <Lock className="h-4 w-4" />
+                      {language === 'bn' ? 'কুইক পিন দিয়ে লক করুন' : 'Lock App (Quick PIN)'}
+                    </button>
+                  )}
                 </div>
 
                 {/* Logout */}

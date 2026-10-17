@@ -1,27 +1,52 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { getGreeting, formatDate } from '@/lib/utils';
-import { SummaryCards } from '@/components/dashboard/SummaryCards';
 import { MonthSelector } from '@/components/dashboard/MonthSelector';
-import { IncomeExpenseChart } from '@/components/dashboard/IncomeExpenseChart';
-import { CashFlowOverview } from '@/components/dashboard/CashFlowOverview';
-import { MonthComparisonSection } from '@/components/dashboard/MonthComparisonSection';
-import { SpendingTrendChart } from '@/components/dashboard/SpendingTrendChart';
-import { CategoryBreakdownChart } from '@/components/dashboard/CategoryBreakdownChart';
-import { BudgetUtilizationChart } from '@/components/dashboard/BudgetUtilizationChart';
-import { RecentTransactions } from '@/components/dashboard/RecentTransactions';
+import { ClassicDashboard } from '@/components/dashboard/ClassicDashboard';
+import { SmartDashboard } from '@/components/dashboard/SmartDashboard';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { PlusCircle, Sparkles, AlertCircle } from 'lucide-react';
+import {
+  PlusCircle,
+  Sparkles,
+  AlertCircle,
+  LayoutDashboard,
+  Zap,
+  Eye,
+  EyeOff,
+} from 'lucide-react';
 import { format } from 'date-fns';
+import clsx from 'clsx';
+
+type DashboardView = 'classic' | 'smart';
+const DASHBOARD_VIEW_KEY = 'my-money-dashboard-view';
 
 export default function DashboardPage() {
   const { user, profile } = useAuth();
-  const { loading, error, refreshData, transactions } = useData();
+  const { loading, error, refreshData } = useData();
+  const { isPrivacyBlurEnabled, togglePrivacyBlur } = useTheme();
   const { t, language } = useLanguage();
   const navigate = useNavigate();
+
+  // Persistent Dashboard View Switcher (Defaults to 'classic')
+  const [activeView, setActiveView] = useState<DashboardView>(() => {
+    try {
+      const saved = localStorage.getItem(DASHBOARD_VIEW_KEY);
+      if (saved === 'smart' || saved === 'classic') return saved;
+    } catch {}
+    return 'classic';
+  });
+
+  const handleSelectView = (view: DashboardView) => {
+    setActiveView(view);
+    try {
+      localStorage.setItem(DASHBOARD_VIEW_KEY, view);
+    } catch {}
+  };
 
   const displayName =
     profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || (language === 'bn' ? 'আবিদ' : 'Abid');
@@ -54,8 +79,63 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          {/* Dashboard Switcher Pill */}
+          <div className="flex rounded-xl bg-gray-100 p-1 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-xs">
+            <button
+              type="button"
+              onClick={() => handleSelectView('classic')}
+              className={clsx(
+                'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all',
+                activeView === 'classic'
+                  ? 'bg-white text-teal-700 shadow-xs dark:bg-gray-700 dark:text-teal-300'
+                  : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
+              )}
+            >
+              <LayoutDashboard className="h-3.5 w-3.5" />
+              <span>{language === 'bn' ? 'ক্লাসিক ড্যাশবোর্ড' : 'Classic View'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleSelectView('smart')}
+              className={clsx(
+                'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all',
+                activeView === 'smart'
+                  ? 'bg-white text-teal-700 shadow-xs dark:bg-gray-700 dark:text-teal-300'
+                  : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
+              )}
+            >
+              <Zap className="h-3.5 w-3.5 text-amber-500" />
+              <span>{language === 'bn' ? 'স্মার্ট ককপিট' : 'Smart Cockpit'}</span>
+            </button>
+          </div>
+
           <MonthSelector />
+
+          {/* Privacy Eye Toggle */}
+          <button
+            type="button"
+            onClick={togglePrivacyBlur}
+            className={clsx(
+              'rounded-xl border p-2 transition-all shadow-xs',
+              isPrivacyBlurEnabled
+                ? 'border-teal-300 bg-teal-50 text-teal-700 dark:border-teal-800 dark:bg-teal-950/60 dark:text-teal-300'
+                : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'
+            )}
+            title={
+              isPrivacyBlurEnabled
+                ? language === 'bn'
+                  ? 'ব্যালেন্স প্রদর্শন করুন'
+                  : 'Reveal Balances'
+                : language === 'bn'
+                ? 'প্রাইভেসি ব্যালেন্স ব্লার'
+                : 'Hide / Blur Balances'
+            }
+          >
+            {isPrivacyBlurEnabled ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+
           <Button
             variant="primary"
             onClick={() => navigate('/add-transaction')}
@@ -81,72 +161,8 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Fresh Start Zero-Data Banner */}
-      {transactions.length === 0 && (
-        <div className="relative overflow-hidden rounded-2xl border border-teal-200 bg-gradient-to-r from-teal-50 via-emerald-50 to-cyan-50 p-5 shadow-xs dark:border-teal-900/60 dark:from-teal-950/40 dark:via-emerald-950/30 dark:to-cyan-950/40">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="space-y-0.5">
-              <div className="flex items-center gap-2 text-teal-900 dark:text-teal-200 font-bold text-sm">
-                <span>🎯 {language === 'bn' ? 'সম্পূর্ণ নতুন ও শূন্য (৳০) থেকে শুরু!' : 'Fresh Start with Zero Data!'}</span>
-              </div>
-              <p className="text-xs text-teal-800 dark:text-teal-300">
-                {language === 'bn'
-                  ? 'আপনার ক্যাশ, বিকাশ ও ব্যাংক অ্যাকাউন্ট শূন্য ব্যালেন্সে প্রস্তুত। আপনার ব্যক্তিগত প্রকৃত হিসাব রাখতে প্রথম লেনদেন যোগ করুন।'
-                  : 'Your accounts are initialized with ৳0 balance. Click "+ Add Transaction" to start recording your personal finances.'}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => navigate('/add-transaction')}
-                leftIcon={<PlusCircle className="h-4 w-4" />}
-              >
-                {language === 'bn' ? '+ লেনদেন যোগ করুন' : 'Add Transaction'}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigate('/accounts')}
-              >
-                {language === 'bn' ? 'অ্যাকাউন্টস' : 'Accounts'}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 6 Financial Metric Summary Cards */}
-      <SummaryCards />
-
-      {/* Cash Flow Overview */}
-      <CashFlowOverview />
-
-      {/* Visualizations Row 1: Income vs Expenses & Month-to-Month Comparison */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <div className="w-full min-w-0">
-          <IncomeExpenseChart />
-        </div>
-        <div className="w-full min-w-0">
-          <MonthComparisonSection />
-        </div>
-      </div>
-
-      {/* Visualizations Row 2: Daily Spending Trend & Category Breakdown */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="w-full min-w-0">
-          <SpendingTrendChart />
-        </div>
-        <div className="w-full min-w-0">
-          <CategoryBreakdownChart />
-        </div>
-      </div>
-
-      {/* Budget Utilization */}
-      <BudgetUtilizationChart />
-
-      {/* Recent Transactions List */}
-      <RecentTransactions />
+      {/* Render Active View */}
+      {activeView === 'classic' ? <ClassicDashboard /> : <SmartDashboard />}
     </div>
   );
 }

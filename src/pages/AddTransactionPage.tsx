@@ -11,6 +11,7 @@ export default function AddTransactionPage() {
   const { transactions } = useData();
 
   const editId = searchParams.get('edit');
+  const typeParam = searchParams.get('type') as any;
   const transactionToEdit = editId
     ? transactions.find((t) => t.id === editId)
     : undefined;
@@ -43,6 +44,7 @@ export default function AddTransactionPage() {
           <TransactionForm
             initialData={transactionToEdit}
             isEdit={!!transactionToEdit}
+            defaultType={typeParam === 'income' || typeParam === 'expense' || typeParam === 'transfer' ? typeParam : undefined}
             onSuccess={() => navigate('/transactions')}
             onCancel={() => navigate(-1)}
           />

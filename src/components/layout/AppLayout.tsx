@@ -3,6 +3,8 @@ import { Outlet } from 'react-router-dom';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { MobileNav } from '@/components/layout/MobileNav';
 import { Header } from '@/components/layout/Header';
+import { MobileQuickAddFab } from '@/components/layout/MobileQuickAddFab';
+import { QuickPinOverlay } from '@/components/auth/QuickPinOverlay';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import clsx from 'clsx';
 
@@ -71,6 +73,13 @@ export function AppLayout() {
       <div className="lg:hidden">
         <MobileNav />
       </div>
+
+      {/* Floating Speed-Dial Thumb Button for mobile */}
+      <MobileQuickAddFab />
+
+      {/* Quick PIN Privacy Lock Screen */}
+      <QuickPinOverlay />
     </div>
   );
 }
+

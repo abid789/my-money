@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import clsx from 'clsx';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
-import { useTheme } from '@/contexts/ThemeContext';
+import { useTheme, BUILT_IN_THEMES } from '@/contexts/ThemeContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -31,6 +31,13 @@ import {
   Copy,
   AlertTriangle,
   RefreshCw,
+  Eye,
+  EyeOff,
+  Sparkles,
+  Layers,
+  Sliders,
+  Type,
+  Square,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { WeeklyEmailModal } from '@/components/reports/WeeklyEmailModal';
@@ -45,7 +52,24 @@ import {
 
 export default function SettingsPage() {
   const { user, profile, updateProfile, updatePassword, deleteAccount } = useAuth();
-  const { theme, setTheme } = useTheme();
+  const {
+    theme,
+    setTheme,
+    activeTheme,
+    setActiveTheme,
+    density,
+    setDensity,
+    fontSize,
+    setFontSize,
+    cardRadius,
+    setCardRadius,
+    isPrivacyBlurEnabled,
+    togglePrivacyBlur,
+    isPinEnabled,
+    setupPin,
+    disablePin,
+    restoreDefaultAppearance,
+  } = useTheme();
   const { addNotification } = useNotifications();
 
   // Profile Form
@@ -58,6 +82,46 @@ export default function SettingsPage() {
     String(profile?.first_day_of_week ?? 0)
   );
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  // Appearance & Quick PIN State
+  const [newPinInput, setNewPinInput] = useState('');
+  const [confirmPinInput, setConfirmPinInput] = useState('');
+  const [disablePinInput, setDisablePinInput] = useState('');
+  const [isPinSubmitting, setIsPinSubmitting] = useState(false);
+  const [restoreConfirmOpen, setRestoreConfirmOpen] = useState(false);
+
+  const handleSetupPin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!/^\d{4}$/.test(newPinInput)) {
+      toast.error(language === 'bn' ? 'PIN অবশ্যই ঠিক ৪ সংখ্যার হতে হবে' : 'PIN must be exactly 4 digits');
+      return;
+    }
+    if (newPinInput !== confirmPinInput) {
+      toast.error(language === 'bn' ? 'PIN দুটি মেলেনি' : 'PINs do not match');
+      return;
+    }
+    setIsPinSubmitting(true);
+    const ok = await setupPin(newPinInput);
+    setIsPinSubmitting(false);
+    if (ok) {
+      setNewPinInput('');
+      setConfirmPinInput('');
+    }
+  };
+
+  const handleDisablePin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!disablePinInput) {
+      toast.error(language === 'bn' ? 'বর্তমান PIN প্রদান করুন' : 'Enter current PIN');
+      return;
+    }
+    setIsPinSubmitting(true);
+    const ok = await disablePin(disablePinInput);
+    setIsPinSubmitting(false);
+    if (ok) {
+      setDisablePinInput('');
+    }
+  };
 
   // Password Form
   const [currentPassword, setCurrentPassword] = useState('');
@@ -416,35 +480,330 @@ export default function SettingsPage() {
         </form>
       </div>
 
-      {/* Appearance & Theme */}
-      <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-800/90">
-        <div className="mb-4 flex items-center gap-2">
-          <Palette className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
-            Appearance
-          </h2>
+      {/* ─── Appearance & Personalization Center ────────────────────────────── */}
+      <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-800/90 space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-gray-100 dark:border-gray-800 pb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
+              <Palette className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-gray-900 dark:text-white">
+                {language === 'bn' ? 'অ্যাপিয়ারেন্স ও পার্সোনালাইজেশন সেন্টার' : 'Appearance & Personalization Center'}
+              </h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {language === 'bn'
+                  ? '৭টি বিল্ট-ইন থিম, লেআউট ডেনসিটি, ফন্ট স্কেলিং ও কুইক পিন সিকিউরিটি'
+                  : '7 built-in themes, layout density, font scaling, and privacy controls.'}
+              </p>
+            </div>
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setRestoreConfirmOpen(true)}
+            leftIcon={<RotateCcw className="h-3.5 w-3.5" />}
+          >
+            {language === 'bn' ? 'ডিফল্ট থিম পুনরুদ্ধার' : 'Restore Default Appearance'}
+          </Button>
         </div>
 
-        <div className="flex flex-wrap gap-3">
-          {[
-            { key: 'light', label: 'Light Mode' },
-            { key: 'dark', label: 'Dark Mode' },
-            { key: 'system', label: 'System Theme' },
-          ].map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => setTheme(item.key as any)}
-              className={`flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-semibold transition-all ${
-                theme === item.key
-                  ? 'border-teal-500 bg-teal-50 text-teal-700 dark:bg-teal-950/60 dark:text-teal-300 ring-2 ring-teal-500'
-                  : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'
-              }`}
-            >
-              <span>{item.label}</span>
-              {theme === item.key && <Check className="h-3.5 w-3.5" />}
-            </button>
-          ))}
+        {/* 1. 7 Built-In Primary Themes */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
+              <Sparkles className="h-4 w-4 text-amber-500" />
+              <span>{language === 'bn' ? '১. বিল্ট-ইন প্রাইমারি থিম (ঠিক ৭টি প্রিমিয়াম থিম)' : '1. Built-In Primary Themes (Exactly 7 Themes)'}</span>
+            </label>
+            <span className="text-[11px] font-semibold text-teal-600 dark:text-teal-400">
+              {BUILT_IN_THEMES.find((t) => t.id === activeTheme)?.nameEn}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {BUILT_IN_THEMES.map((item) => {
+              const isSelected = activeTheme === item.id;
+              return (
+                <div
+                  key={item.id}
+                  onClick={() => setActiveTheme(item.id)}
+                  className={clsx(
+                    'cursor-pointer rounded-2xl border p-4 transition-all relative overflow-hidden group select-none',
+                    isSelected
+                      ? 'border-teal-500 bg-teal-50/50 dark:bg-teal-950/30 ring-2 ring-teal-500 shadow-md'
+                      : 'border-gray-200 bg-white hover:border-gray-300 dark:border-gray-700 dark:bg-gray-850 hover:shadow-xs'
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <div
+                        className="h-4 w-4 rounded-full ring-2 ring-white dark:ring-gray-900 shadow-xs shrink-0"
+                        style={{ backgroundColor: item.accentColor }}
+                      />
+                      <span className="text-xs font-bold text-gray-900 dark:text-white group-hover:text-teal-600 dark:group-hover:text-teal-400">
+                        {language === 'bn' ? item.nameBn : item.nameEn}
+                      </span>
+                    </div>
+
+                    {isSelected && (
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-teal-500 text-white shadow-xs">
+                        <Check className="h-3 w-3 stroke-[3]" />
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="mt-2 text-[11px] text-gray-600 dark:text-gray-300 leading-relaxed">
+                    {language === 'bn' ? item.descriptionBn : item.descriptionEn}
+                  </p>
+
+                  <div className="mt-3 flex items-center justify-between">
+                    <span className="inline-flex rounded-md bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                      {item.badge}
+                    </span>
+                    <span
+                      className="h-3 w-8 rounded-full border border-gray-300 dark:border-gray-600"
+                      style={{ backgroundColor: item.surfaceColor }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 2. Light / Dark / System Mode */}
+        <div className="space-y-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+          <label className="text-xs font-bold text-gray-900 dark:text-white">
+            {language === 'bn' ? '২. মোড (Light / Dark / System)' : '2. Appearance Mode'}
+          </label>
+          <div className="flex flex-wrap gap-2.5">
+            {[
+              { key: 'light', labelEn: 'Light Mode', labelBn: 'লাইট মোড' },
+              { key: 'dark', labelEn: 'Dark Mode', labelBn: 'ডার্ক মোড' },
+              { key: 'system', labelEn: 'System Theme', labelBn: 'সিস্টেম থিম' },
+            ].map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => setTheme(item.key as any)}
+                className={clsx(
+                  'flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-semibold transition-all',
+                  theme === item.key
+                    ? 'border-teal-500 bg-teal-50 text-teal-700 dark:bg-teal-950/60 dark:text-teal-300 ring-2 ring-teal-500'
+                    : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                )}
+              >
+                <span>{language === 'bn' ? item.labelBn : item.labelEn}</span>
+                {theme === item.key && <Check className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 3. Layout Density */}
+        <div className="space-y-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+          <label className="text-xs font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
+            <Sliders className="h-4 w-4 text-teal-600" />
+            <span>{language === 'bn' ? '৩. লেআউট ডেনসিটি (Layout Density)' : '3. Layout Density'}</span>
+          </label>
+          <div className="flex flex-wrap gap-2.5">
+            {[
+              { key: 'compact', labelEn: 'Compact (Tight Spacing)', labelBn: 'কমপ্যাক্ট (অধিক তথ্য)' },
+              { key: 'comfortable', labelEn: 'Comfortable (Standard)', labelBn: 'কমফোর্টেবল (স্ট্যান্ডার্ড)' },
+              { key: 'spacious', labelEn: 'Spacious (Relaxed)', labelBn: 'স্পেসিয়াস (খোলামেলা)' },
+            ].map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => setDensity(item.key as any)}
+                className={clsx(
+                  'flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-semibold transition-all',
+                  density === item.key
+                    ? 'border-teal-500 bg-teal-50 text-teal-700 dark:bg-teal-950/60 dark:text-teal-300 ring-2 ring-teal-500'
+                    : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                )}
+              >
+                <span>{language === 'bn' ? item.labelBn : item.labelEn}</span>
+                {density === item.key && <Check className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 4. Font Size & Scaling */}
+        <div className="space-y-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+          <label className="text-xs font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
+            <Type className="h-4 w-4 text-teal-600" />
+            <span>{language === 'bn' ? '৪. ফন্ট সাইজ স্কেলিং (বাংলা ও ইংরেজি)' : '4. Font Size Scaling'}</span>
+          </label>
+          <div className="flex flex-wrap gap-2.5">
+            {[
+              { key: 'small', labelEn: 'Small (14.5px)', labelBn: 'ছোট (১৪.৫px)' },
+              { key: 'normal', labelEn: 'Normal (16px)', labelBn: 'স্বাভাবিক (১৬px)' },
+              { key: 'large', labelEn: 'Large (17.5px - স্পষ্ট)', labelBn: 'বড় (১৭.৫px - চোখের জন্য সহজ)' },
+            ].map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => setFontSize(item.key as any)}
+                className={clsx(
+                  'flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-semibold transition-all',
+                  fontSize === item.key
+                    ? 'border-teal-500 bg-teal-50 text-teal-700 dark:bg-teal-950/60 dark:text-teal-300 ring-2 ring-teal-500'
+                    : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                )}
+              >
+                <span>{language === 'bn' ? item.labelBn : item.labelEn}</span>
+                {fontSize === item.key && <Check className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 5. Card Corner Radius */}
+        <div className="space-y-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+          <label className="text-xs font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
+            <Square className="h-4 w-4 text-teal-600" />
+            <span>{language === 'bn' ? '৫. কার্ড কর্নার রেডিয়াস (Card Radius)' : '5. Card Corner Radius'}</span>
+          </label>
+          <div className="flex flex-wrap gap-2.5">
+            {[
+              { key: 'sharp', labelEn: 'Sharp (4px)', labelBn: 'শার্প (৪px)' },
+              { key: 'rounded', labelEn: 'Rounded (16px)', labelBn: 'রাউন্ডেড (১৬px)' },
+              { key: 'extra-rounded', labelEn: 'Extra-Rounded Squircle (28px)', labelBn: 'এক্সট্রা-রাউন্ডেড (২৮px)' },
+            ].map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => setCardRadius(item.key as any)}
+                className={clsx(
+                  'flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-semibold transition-all',
+                  cardRadius === item.key
+                    ? 'border-teal-500 bg-teal-50 text-teal-700 dark:bg-teal-950/60 dark:text-teal-300 ring-2 ring-teal-500'
+                    : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                )}
+              >
+                <span>{language === 'bn' ? item.labelBn : item.labelEn}</span>
+                {cardRadius === item.key && <Check className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 6. Privacy Balance Blur */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+          <div>
+            <div className="flex items-center gap-2">
+              <EyeOff className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+              <span className="text-xs font-bold text-gray-900 dark:text-white">
+                {language === 'bn' ? '৬. প্রাইভেসি ব্যালেন্স ব্লার (Privacy Balance Blur)' : '6. Privacy Balance Blur'}
+              </span>
+            </div>
+            <p className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">
+              {language === 'bn'
+                ? 'পাবলিক জায়গায় ড্যাশবোর্ড খোলার সময় সংবেদনশীল ব্যালেন্স ও টাকার পরিমাণ ব্লার করে রাখা'
+                : 'Shield and blur sensitive account balances and metrics in public.'}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={togglePrivacyBlur}
+            className={clsx(
+              'flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-bold transition-all shadow-xs shrink-0',
+              isPrivacyBlurEnabled
+                ? 'border-teal-500 bg-teal-500 text-white'
+                : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200'
+            )}
+          >
+            {isPrivacyBlurEnabled ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            <span>{isPrivacyBlurEnabled ? (language === 'bn' ? 'সক্রিয় (Active)' : 'Enabled') : (language === 'bn' ? 'নিষ্ক্রিয়' : 'Disabled')}</span>
+          </button>
+        </div>
+
+        {/* 7. Quick PIN Security Lock */}
+        <div className="rounded-xl border border-gray-200/80 bg-gray-50/70 p-4 dark:border-gray-700/60 dark:bg-gray-800/40 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Lock className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+              <span className="text-xs font-bold text-gray-900 dark:text-white">
+                {language === 'bn' ? '৭. ৪-সংখ্যার কুইক পিন লক (Quick PIN Privacy Lock)' : '7. 4-Digit Quick PIN Privacy Lock'}
+              </span>
+            </div>
+            {isPinEnabled ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                {language === 'bn' ? 'PIN সক্রিয়' : 'PIN Active'}
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 rounded-full bg-gray-200 px-2.5 py-0.5 text-xs font-semibold text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+                {language === 'bn' ? 'PIN বন্ধ' : 'PIN Inactive'}
+              </span>
+            )}
+          </div>
+
+          <p className="text-[11px] text-gray-600 dark:text-gray-300 leading-relaxed">
+            {language === 'bn'
+              ? 'এটি একটি ডিভাইস-লেভেল প্রাইভেসি শিল্ড। সাইট ওপেন করলে বা হেডার থেকে লক চাপলে ৪-সংখ্যার পিন না দেওয়া পর্যন্ত ব্যালেন্স দেখা যাবে না। এটি আপনার অ্যাকাউন্টের মাস্টার পাসওয়ার্ডকে কোনোভাবেই পরিবর্তন করে না।'
+              : 'Fast 4-digit device protection for your financial screens. Does not alter your master account password.'}
+          </p>
+
+          {!isPinEnabled ? (
+            <form onSubmit={handleSetupPin} className="space-y-3 pt-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Input
+                  type="password"
+                  maxLength={4}
+                  label={language === 'bn' ? 'নতুন ৪-সংখ্যার PIN' : 'New 4-Digit PIN'}
+                  placeholder="••••"
+                  value={newPinInput}
+                  onChange={(e) => setNewPinInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                />
+                <Input
+                  type="password"
+                  maxLength={4}
+                  label={language === 'bn' ? 'কনফার্ম PIN' : 'Confirm PIN'}
+                  placeholder="••••"
+                  value={confirmPinInput}
+                  onChange={(e) => setConfirmPinInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                />
+              </div>
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                loading={isPinSubmitting}
+                disabled={newPinInput.length !== 4 || confirmPinInput.length !== 4}
+                leftIcon={<Lock className="h-3.5 w-3.5" />}
+              >
+                {language === 'bn' ? 'কুইক পিন লক চালু করুন' : 'Enable Quick PIN Lock'}
+              </Button>
+            </form>
+          ) : (
+            <form onSubmit={handleDisablePin} className="space-y-3 pt-1">
+              <div className="max-w-xs">
+                <Input
+                  type="password"
+                  maxLength={4}
+                  label={language === 'bn' ? 'বর্তমান PIN দিয়ে নিষ্ক্রিয় করুন' : 'Enter Current PIN to Disable'}
+                  placeholder="••••"
+                  value={disablePinInput}
+                  onChange={(e) => setDisablePinInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                />
+              </div>
+              <Button
+                type="submit"
+                variant="danger"
+                size="sm"
+                loading={isPinSubmitting}
+                disabled={disablePinInput.length !== 4}
+              >
+                {language === 'bn' ? 'কুইক পিন নিষ্ক্রিয় করুন' : 'Disable Quick PIN'}
+              </Button>
+            </form>
+          )}
         </div>
       </div>
 
@@ -1011,6 +1370,23 @@ export default function SettingsPage() {
         confirmText={language === 'bn' ? 'ডিসকানেক্ট করুন' : 'Disconnect'}
         cancelText={language === 'bn' ? 'বাতিল' : 'Cancel'}
         variant="danger"
+      />
+
+      <ConfirmDialog
+        isOpen={restoreConfirmOpen}
+        onClose={() => setRestoreConfirmOpen(false)}
+        onConfirm={() => {
+          restoreDefaultAppearance();
+          setRestoreConfirmOpen(false);
+        }}
+        title={language === 'bn' ? 'ডিফল্ট থিম ও অ্যাপিয়ারেন্স পুনরুদ্ধার করবেন?' : 'Restore Default Appearance?'}
+        message={
+          language === 'bn'
+            ? 'এটি থিমটিকে ক্লাসিক অরিজিনাল, স্বাভাবিক ফন্ট ও সাধারণ রাউন্ডেড স্টাইলে ফিরিয়ে আনবে। সতর্কতা: আপনার কোনো আর্থিক হিসাব বা লেনদেন মোছা বা পরিবর্তন হবে না।'
+            : 'This will reset the theme to Classic Original, comfortable density, normal font size, and standard rounded cards. Note: Your financial transactions and accounts are NEVER affected.'
+        }
+        confirmText={language === 'bn' ? 'হ্যাঁ, ডিফল্ট ফিরিয়ে আনুন' : 'Yes, Restore Defaults'}
+        cancelText={language === 'bn' ? 'বাতিল' : 'Cancel'}
       />
 
       <WeeklyEmailModal

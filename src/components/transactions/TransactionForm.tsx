@@ -22,6 +22,7 @@ import toast from 'react-hot-toast';
 interface TransactionFormProps {
   initialData?: Transaction;
   isEdit?: boolean;
+  defaultType?: TransactionType;
   onSuccess?: () => void;
   onCancel?: () => void;
 }
@@ -40,6 +41,7 @@ const PAYMENT_METHODS = [
 export function TransactionForm({
   initialData,
   isEdit = false,
+  defaultType,
   onSuccess,
   onCancel,
 }: TransactionFormProps) {
@@ -53,7 +55,9 @@ export function TransactionForm({
   } = useData();
   const navigate = useNavigate();
 
-  const [type, setType] = useState<TransactionType>(initialData?.type || 'expense');
+  const [type, setType] = useState<TransactionType>(
+    initialData?.type || defaultType || 'expense'
+  );
   const [amount, setAmount] = useState<string>(initialData ? String(initialData.amount) : '');
   const [description, setDescription] = useState(initialData?.description || '');
   const [date, setDate] = useState(initialData?.date || format(new Date(), 'yyyy-MM-dd'));

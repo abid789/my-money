@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '@/contexts/DataContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { formatCurrency } from '@/lib/utils';
 import type { Account } from '@/types';
 import { Button } from '@/components/ui/Button';
@@ -8,6 +9,8 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { BrandBadge, BrandIconBubble } from '@/components/ui/BrandBadge';
+import clsx from 'clsx';
 import {
   Wallet,
   PlusCircle,
@@ -33,6 +36,7 @@ const ACCOUNT_TYPES = [
 
 export default function AccountsPage() {
   const { accounts, addAccount, updateAccount, deleteAccount, financialSummary } = useData();
+  const { isPrivacyBlurEnabled } = useTheme();
   const navigate = useNavigate();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
@@ -160,8 +164,13 @@ export default function AccountsPage() {
         <span className="text-xs font-semibold text-teal-800 uppercase tracking-wider dark:text-teal-300">
           Total Net Available Balance
         </span>
-        <div className="mt-2 text-3xl font-extrabold tracking-tight text-teal-950 dark:text-white sm:text-4xl">
-          {formatCurrency(financialSummary.availableBalance)}
+        <div
+          className={clsx(
+            'mt-2 text-3xl font-extrabold tracking-tight text-teal-950 dark:text-white sm:text-4xl transition-all',
+            isPrivacyBlurEnabled && 'privacy-blur-target'
+          )}
+        >
+          {isPrivacyBlurEnabled ? '৳ ••••••••' : formatCurrency(financialSummary.availableBalance)}
         </div>
         <p className="mt-1 text-xs text-teal-700 dark:text-teal-400">
           Combined live balance across {accounts.length} active account{accounts.length === 1 ? '' : 's'}.
@@ -178,14 +187,14 @@ export default function AccountsPage() {
             <div>
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="rounded-xl bg-gray-50 p-2.5 dark:bg-gray-700/50">
-                    {getAccountIcon(acc.type)}
-                  </div>
+                  <BrandIconBubble brand={acc.name || acc.type} size="md" />
                   <div>
                     <h3 className="font-semibold text-gray-900 dark:text-white text-sm sm:text-base">
                       {acc.name}
                     </h3>
-                    <span className="text-xs text-gray-400">{acc.type}</span>
+                    <div className="mt-1">
+                      <BrandBadge brand={acc.type || acc.name} size="sm" />
+                    </div>
                   </div>
                 </div>
 
@@ -209,14 +218,21 @@ export default function AccountsPage() {
 
               <div className="mt-5">
                 <span className="text-[11px] text-gray-400">Current Balance</span>
-                <div className="text-xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-2xl">
-                  {formatCurrency(Number(acc.current_balance))}
+                <div
+                  className={clsx(
+                    'text-xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-2xl transition-all',
+                    isPrivacyBlurEnabled && 'privacy-blur-target'
+                  )}
+                >
+                  {isPrivacyBlurEnabled ? '৳ •••••' : formatCurrency(Number(acc.current_balance))}
                 </div>
               </div>
             </div>
 
             <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-3 text-[11px] text-gray-400 dark:border-gray-700">
-              <span>Opening: {formatCurrency(Number(acc.opening_balance))}</span>
+              <span className={clsx(isPrivacyBlurEnabled && 'privacy-blur-target')}>
+                Opening: {isPrivacyBlurEnabled ? '••••' : formatCurrency(Number(acc.opening_balance))}
+              </span>
               <span className="rounded bg-teal-50 px-2 py-0.5 font-medium text-teal-700 dark:bg-teal-950/60 dark:text-teal-300">
                 {acc.currency || 'BDT'}
               </span>

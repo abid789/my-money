@@ -156,6 +156,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (event.data?.type === 'SYNC_PROFILE') {
           if (event.data.user) setUser(event.data.user);
           if (event.data.profile) setProfile(event.data.profile);
+        } else if (event.data?.type === 'SIGN_OUT') {
+          setUser(null);
+          setSession(null);
+          setProfile(null);
         }
       };
     }
@@ -278,11 +282,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // ── Sign Out ──────────────────────────────────────────────────────────────
 
   const signOut = useCallback(async () => {
+    try {
+      if (isSupabaseConfigured() && supabase) {
+        await supabase.auth.signOut({ scope: 'global' }).catch(() => {});
+      }
+    } catch {}
     localStorage.removeItem('my-money-session-token');
     localStorage.removeItem('my-money-local-session');
     setUser(null);
     setSession(null);
     setProfile(null);
+
+    if (typeof BroadcastChannel !== 'undefined') {
+      try {
+        const bc = new BroadcastChannel('my-money-profile-channel');
+        bc.postMessage({ type: 'SIGN_OUT' });
+        bc.close();
+      } catch {}
+    }
+
     toast.success('লগআউট সম্পন্ন হয়েছে');
   }, []);
 

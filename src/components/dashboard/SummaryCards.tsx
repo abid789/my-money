@@ -1,5 +1,6 @@
 import { useData } from '@/contexts/DataContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { formatCurrency, getPercentageChange } from '@/lib/utils';
 import {
   TrendingUp,
@@ -16,6 +17,7 @@ import clsx from 'clsx';
 export function SummaryCards() {
   const { financialSummary } = useData();
   const { t, language } = useLanguage();
+  const { isPrivacyBlurEnabled } = useTheme();
 
   const incomeChange = getPercentageChange(
     financialSummary.totalIncome,
@@ -117,8 +119,13 @@ export function SummaryCards() {
             </div>
 
             <div className="mt-3">
-              <div className="text-lg font-bold tracking-tight text-gray-900 dark:text-white sm:text-xl">
-                {formatCurrency(card.amount)}
+              <div
+                className={clsx(
+                  'text-lg font-bold tracking-tight text-gray-900 dark:text-white sm:text-xl transition-all',
+                  isPrivacyBlurEnabled && 'privacy-blur-target'
+                )}
+              >
+                {isPrivacyBlurEnabled ? '৳ •••••' : formatCurrency(card.amount)}
               </div>
 
               {card.showChange !== undefined && card.showChange ? (
