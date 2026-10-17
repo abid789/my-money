@@ -150,7 +150,7 @@ export default function SettingsPage() {
   // Weekly Digest & Server Test Email
   const [weeklyModalOpen, setWeeklyModalOpen] = useState(false);
   const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
-  const [testRecipient, setTestRecipient] = useState('abidhossain52003@gmail.com');
+  const [testRecipient, setTestRecipient] = useState('abidasset@gmail.com');
   const [emailConfig, setEmailConfig] = useState<{
     configured: boolean;
     fromEmail: string;
@@ -159,7 +159,7 @@ export default function SettingsPage() {
   }>({
     configured: false,
     fromEmail: 'onboarding@resend.dev',
-    configuredRecipient: 'abidhossain52003@gmail.com',
+    configuredRecipient: 'abidasset@gmail.com',
   });
   const [testEmailStatus, setTestEmailStatus] = useState<{
     type: 'success' | 'error';
@@ -179,7 +179,7 @@ export default function SettingsPage() {
         setEmailConfig({
           configured: Boolean(data.configured),
           fromEmail: data.fromEmail || 'onboarding@resend.dev',
-          configuredRecipient: data.configuredRecipient || 'abidhossain52003@gmail.com',
+          configuredRecipient: data.configuredRecipient || 'abidasset@gmail.com',
           provider: data.provider || 'Resend',
         });
         if (data.configuredRecipient) {
@@ -219,18 +219,25 @@ export default function SettingsPage() {
         toast.success(data.message || 'টেস্ট ইমেইল সফলভাবে পাঠানো হয়েছে!');
       } else {
         const isRestricted = data.restriction === 'resend_testing_restriction';
+        const rawErr = typeof data.error === 'string' ? data.error : (data.error?.message || data.message);
+        const resolvedMsg = rawErr || (res.status === 404 ? 'API route not found' : 'টেস্ট ইমেইল পাঠানো সম্ভব হয়নি');
+
         setTestEmailStatus({
           type: 'error',
-          message: data.message || data.error?.message || 'টেস্ট ইমেইল পাঠানো সম্ভব হয়নি',
+          message: resolvedMsg,
           restriction: data.restriction,
           allowedOwnerEmail: data.allowedOwnerEmail,
-          reason: data.reason,
-          resolution: data.resolution,
+          reason: data.reason || (resolvedMsg.includes('RESEND_API_KEY')
+            ? 'সার্ভারে RESEND_API_KEY কনফিগার করা নেই। আপনি যদি Vercel বা অন্য হোস্টিংয়ে সাইটটি রান করেন, তবে হোস্টিং ড্যাশবোর্ডের Environment Variables-এ RESEND_API_KEY যোগ করতে হবে।'
+            : resolvedMsg),
+          resolution: data.resolution || (resolvedMsg.includes('RESEND_API_KEY')
+            ? 'Vercel Dashboard -> Project Settings -> Environment Variables এ RESEND_API_KEY, RESEND_FROM_EMAIL, এবং WEEKLY_REPORT_TO যোগ করে Redeploy করুন।'
+            : undefined),
         });
         toast.error(
           isRestricted
             ? 'Resend রেস্ট্রিকশন: টেস্ট সেন্ডার দিয়ে শুধুমাত্র ওনারের নিজস্ব ইমেইলে পাঠানো যায়।'
-            : data.message || 'ইমেইল পাঠানো যায়নি',
+            : resolvedMsg,
           { duration: 6000 }
         );
       }
@@ -498,7 +505,7 @@ export default function SettingsPage() {
             </div>
             <div className="mt-0.5 flex items-center gap-1.5 text-xs font-semibold text-teal-700 dark:text-teal-300">
               <Clock className="h-3.5 w-3.5" />
-              <span>প্রতি রবিবার সকাল ৯:০০ BST</span>
+              <span>প্রতি সোমবার সকাল ৯:০০ BST</span>
             </div>
           </div>
         </div>
@@ -1009,7 +1016,7 @@ export default function SettingsPage() {
       <WeeklyEmailModal
         isOpen={weeklyModalOpen}
         onClose={() => setWeeklyModalOpen(false)}
-        defaultEmail={emailConfig.configuredRecipient || 'abidhossain52003@gmail.com'}
+        defaultEmail={emailConfig.configuredRecipient || 'abidasset@gmail.com'}
       />
     </div>
   );

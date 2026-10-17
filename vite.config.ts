@@ -50,7 +50,7 @@ export default defineConfig(({ mode }) => {
             if (pathname === '/api/test-email') {
               const resendApiKey = process.env.RESEND_API_KEY;
               const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
-              const defaultTo = process.env.WEEKLY_REPORT_TO || 'abidhossain52003@gmail.com';
+              const defaultTo = process.env.WEEKLY_REPORT_TO || 'abidasset@gmail.com';
 
               if (req.method === 'GET') {
                 res.setHeader('Content-Type', 'application/json');
@@ -187,7 +187,7 @@ export default defineConfig(({ mode }) => {
             } else if (pathname === '/api/send-weekly-report') {
               const resendApiKey = process.env.RESEND_API_KEY;
               const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
-              const defaultTo = process.env.WEEKLY_REPORT_TO || 'abidhossain52003@gmail.com';
+              const defaultTo = process.env.WEEKLY_REPORT_TO || 'abidasset@gmail.com';
               const recipient = (body.to || parsedUrl.searchParams.get('to') || defaultTo).trim();
               const htmlContent = body.html || body.htmlContent;
               const subject = body.subject || `৳ [My Money] আপনার সাপ্তাহিক আর্থিক হিসাব`;

@@ -16,7 +16,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const resendApiKey = process.env.RESEND_API_KEY;
   const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
-  const defaultTo = process.env.WEEKLY_REPORT_TO || 'abidhossain52003@gmail.com';
+  const defaultTo = process.env.WEEKLY_REPORT_TO || 'abidasset@gmail.com';
 
   // GET: Return configuration status (without exposing secret keys)
   if (req.method === 'GET') {
@@ -36,8 +36,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!resendApiKey || resendApiKey.trim().length === 0) {
     return res.status(400).json({
       success: false,
-      error: 'RESEND_API_KEY is not configured in the server environment (.env).',
-      resolution: 'Please ensure RESEND_API_KEY is present in your .env file and restart the dev server.',
+      error: 'RESEND_API_KEY is not configured in the server environment (.env or Vercel Environment Variables).',
+      message: 'RESEND_API_KEY is not configured in the server environment (.env or Vercel Environment Variables).',
+      resolution: 'Please ensure RESEND_API_KEY is present in your .env file or Vercel project settings.',
     });
   }
 

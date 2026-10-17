@@ -36,7 +36,7 @@ export function WeeklyEmailModal({
   defaultEmail,
 }: WeeklyEmailModalProps) {
   const { transactions, categories, accounts } = useData();
-  const [recipientEmail, setRecipientEmail] = useState(defaultEmail || 'abidhossain52003@gmail.com');
+  const [recipientEmail, setRecipientEmail] = useState(defaultEmail || 'abidasset@gmail.com');
   const [isSending, setIsSending] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'preview'>('overview');
 
@@ -147,7 +147,7 @@ export function WeeklyEmailModal({
           <div className="mt-2.5 flex items-center gap-1.5 text-[11px] text-teal-700 dark:text-teal-300">
             <Clock className="h-3.5 w-3.5" />
             <span>
-              নির্ধারিত সময়: <strong>প্রতি রবিবার সকাল ৯:০০ টা (বাংলাদেশ সময়)</strong> — পিসি বন্ধ থাকলেও স্বয়ংক্রিয়ভাবে ক্লাউড থেকে পাঠানো হবে।
+              নির্ধারিত সময়: <strong>প্রতি সোমবার সকাল ৯:০০ টা (বাংলাদেশ সময়)</strong> — পিসি বন্ধ থাকলেও স্বয়ংক্রিয়ভাবে ক্লাউড থেকে পাঠানো হবে।
             </span>
           </div>
         </div>
