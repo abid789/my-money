@@ -38,8 +38,8 @@ export default function App() {
             <Routes>
               {/* Public Authentication Routes */}
               <Route path="/login" element={<LoginPage />} />
-              <Route path="/register" element={<RegisterPage />} />
-              <Route path="/reset-password" element={<ResetPasswordPage />} />
+              <Route path="/register" element={<Navigate to="/login" replace />} />
+              <Route path="/reset-password" element={<Navigate to="/login" replace />} />
 
               {/* Protected Application Routes */}
             <Route element={<ProtectedRoute />}>

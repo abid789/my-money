@@ -42,7 +42,7 @@ import { getMonthRange } from '@/lib/utils';
 import toast from 'react-hot-toast';
 import { format, addDays, addWeeks, addMonths, addYears } from 'date-fns';
 
-// ─── Types ──────────────────────────────────────────────────────────────────
+export type SyncStatus = 'saved' | 'saving' | 'offline' | 'error';
 
 interface DataContextValue {
   // State
@@ -60,6 +60,11 @@ interface DataContextValue {
   setSelectedYear: (year: number) => void;
   financialSummary: FinancialSummary;
   isCloudConnected: boolean;
+
+  // Real-time Cloud Sync
+  syncStatus: SyncStatus;
+  lastSyncedAt: Date | null;
+  triggerSync: () => Promise<void>;
 
   // Transaction CRUD
   addTransaction: (txn: Partial<Transaction>) => Promise<void>;
@@ -119,6 +124,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [recurringTransactions, setRecurringTransactions] = useState<RecurringTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('saved');
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
 
   // Period selection
   const now = new Date();
@@ -207,78 +214,207 @@ function setLocal<T>(key: string, data: T) {
   }
 }
 
-  const refreshData = useCallback(async () => {
-    if (!user) return;
+  // ═══════════════════════════════════════════════════════════════════════
+  // BACKGROUND CLOUD SYNCHRONIZATION
+  // ═══════════════════════════════════════════════════════════════════════
 
-    if (!isSupabaseConfigured()) {
-      setError(null);
-
-      // Auto-migrate to zero start: clear out old demo dummy transactions & reset to 0
-      const ZERO_INITIALIZED_KEY = 'my-money-zero-v3';
-      const hasAutoReset = localStorage.getItem(ZERO_INITIALIZED_KEY) === 'true';
-      if (!hasAutoReset) {
-        setLocal('transactions', []);
-        setLocal('accounts', INITIAL_ACCOUNTS);
-        setLocal('budgets', []);
-        setLocal('savings', []);
-        setLocal('recurring', []);
-        localStorage.setItem(ZERO_INITIALIZED_KEY, 'true');
+  const syncWithCloud = useCallback(
+    async (overrideData?: {
+      accounts?: Account[];
+      categories?: Category[];
+      transactions?: Transaction[];
+      budgets?: Budget[];
+      savingsGoals?: SavingsGoal[];
+      recurringTransactions?: RecurringTransaction[];
+    }) => {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        setSyncStatus('offline');
+        return;
       }
 
-      const accs = getLocal<Account[]>('accounts', INITIAL_ACCOUNTS);
-      const cats = getLocal<Category[]>('categories', INITIAL_CATEGORIES);
-      const txns = getLocal<Transaction[]>('transactions', INITIAL_TRANSACTIONS);
-      const bdgs = getLocal<Budget[]>('budgets', INITIAL_BUDGETS);
-      const sgs = getLocal<SavingsGoal[]>('savings', INITIAL_SAVINGS_GOALS);
-      const recs = getLocal<RecurringTransaction[]>('recurring', INITIAL_RECURRING);
+      setSyncStatus('saving');
+      try {
+        const accs = overrideData?.accounts || getLocal<Account[]>('accounts', INITIAL_ACCOUNTS);
+        const cats = overrideData?.categories || getLocal<Category[]>('categories', INITIAL_CATEGORIES);
+        const txns = overrideData?.transactions || getLocal<Transaction[]>('transactions', INITIAL_TRANSACTIONS);
+        const bdgs = overrideData?.budgets || getLocal<Budget[]>('budgets', INITIAL_BUDGETS);
+        const sgs = overrideData?.savingsGoals || getLocal<SavingsGoal[]>('savings', INITIAL_SAVINGS_GOALS);
+        const recs = overrideData?.recurringTransactions || getLocal<RecurringTransaction[]>('recurring', INITIAL_RECURRING);
 
-      const catMap = new Map(cats.map((c) => [c.id, c]));
-      const accMap = new Map(accs.map((a) => [a.id, a]));
+        const token = localStorage.getItem('my-money-session-token') || 'master-session';
 
-      const hydratedTxns = txns.map((t) => ({
-        ...t,
-        category: t.category_id ? catMap.get(t.category_id) : undefined,
-        account: accMap.get(t.account_id),
-        to_account: t.to_account_id ? accMap.get(t.to_account_id) : undefined,
+        const res = await fetch('/api/sync-data', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            data: {
+              accounts: accs,
+              categories: cats,
+              transactions: txns,
+              budgets: bdgs,
+              savingsGoals: sgs,
+              recurringTransactions: recs,
+              preferences: {
+                currency: 'BDT',
+                updatedAt: new Date().toISOString(),
+              },
+            },
+          }),
+        });
+
+        if (res.ok) {
+          setSyncStatus('saved');
+          setLastSyncedAt(new Date());
+        } else {
+          setSyncStatus('error');
+        }
+      } catch {
+        setSyncStatus(typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'error');
+      }
+    },
+    []
+  );
+
+  const triggerSync = useCallback(async () => {
+    toast.loading('ক্লাউডে সিঙ্ক করা হচ্ছে...', { id: 'manual-sync' });
+    await syncWithCloud();
+    toast.success('সব ডাটা ক্লাউডে সুরক্ষিতভাবে সংরক্ষিত!', { id: 'manual-sync' });
+  }, [syncWithCloud]);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // REFRESH DATA (Local-First + Cloud Hydration)
+  // ═══════════════════════════════════════════════════════════════════════
+
+  const refreshData = useCallback(async () => {
+    if (!user) return;
+    setError(null);
+
+    // Auto-migrate to zero start: clear out old demo dummy transactions & reset to 0
+    const ZERO_INITIALIZED_KEY = 'my-money-zero-v3';
+    const hasAutoReset = localStorage.getItem(ZERO_INITIALIZED_KEY) === 'true';
+    if (!hasAutoReset) {
+      setLocal('transactions', []);
+      setLocal('accounts', INITIAL_ACCOUNTS);
+      setLocal('budgets', []);
+      setLocal('savings', []);
+      setLocal('recurring', []);
+      localStorage.setItem(ZERO_INITIALIZED_KEY, 'true');
+    }
+
+    let accs = getLocal<Account[]>('accounts', INITIAL_ACCOUNTS);
+    let cats = getLocal<Category[]>('categories', INITIAL_CATEGORIES);
+    let txns = getLocal<Transaction[]>('transactions', INITIAL_TRANSACTIONS);
+    let bdgs = getLocal<Budget[]>('budgets', INITIAL_BUDGETS);
+    let sgs = getLocal<SavingsGoal[]>('savings', INITIAL_SAVINGS_GOALS);
+    let recs = getLocal<RecurringTransaction[]>('recurring', INITIAL_RECURRING);
+
+    const hydrateAndSetState = (
+      a: Account[],
+      c: Category[],
+      t: Transaction[],
+      b: Budget[],
+      s: SavingsGoal[],
+      r: RecurringTransaction[]
+    ) => {
+      const catMap = new Map(c.map((cat) => [cat.id, cat]));
+      const accMap = new Map(a.map((acc) => [acc.id, acc]));
+
+      const hydratedTxns = t.map((txn) => ({
+        ...txn,
+        category: txn.category_id ? catMap.get(txn.category_id) : undefined,
+        account: accMap.get(txn.account_id),
+        to_account: txn.to_account_id ? accMap.get(txn.to_account_id) : undefined,
       }));
 
-      setAccounts(accs);
-      setCategories(cats);
+      setAccounts(a);
+      setCategories(c);
       setTransactions(hydratedTxns);
-      setBudgets(bdgs.map((b) => ({ ...b, category: b.category_id ? catMap.get(b.category_id) : undefined })));
-      setSavingsGoals(sgs);
-      setRecurringTransactions(recs.map((r) => ({
-        ...r,
-        category: r.category_id ? catMap.get(r.category_id) : undefined,
-        account: accMap.get(r.account_id),
-      })));
-      return;
-    }
+      setBudgets(
+        b.map((bdg) => ({
+          ...bdg,
+          category: bdg.category_id ? catMap.get(bdg.category_id) : undefined,
+        }))
+      );
+      setSavingsGoals(s);
+      setRecurringTransactions(
+        r.map((rec) => ({
+          ...rec,
+          category: rec.category_id ? catMap.get(rec.category_id) : undefined,
+          account: accMap.get(rec.account_id),
+        }))
+      );
+    };
 
+    // 1. Instantly display local cache
+    hydrateAndSetState(accs, cats, txns, bdgs, sgs, recs);
+
+    // 2. Background check with cloud API
     try {
-      setError(null);
-      await Promise.all([
-        fetchAccounts(),
-        fetchCategories(),
-        fetchTransactions(),
-        fetchBudgets(),
-        fetchSavingsGoals(),
-        fetchRecurringTransactions(),
-      ]);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to fetch data';
-      setError(message);
-      console.error('Error fetching data:', err);
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        setSyncStatus('offline');
+        return;
+      }
+
+      const token = localStorage.getItem('my-money-session-token') || 'master-session';
+      const res = await fetch('/api/sync-data', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (res.ok) {
+        const payload = await res.json();
+        if (
+          payload.data &&
+          (payload.data.transactions?.length || payload.data.accounts?.length)
+        ) {
+          const cloudTxns = payload.data.transactions || [];
+          const cloudAccs = payload.data.accounts || [];
+          const cloudCats = payload.data.categories || [];
+          const cloudBdgs = payload.data.budgets || [];
+          const cloudSgs = payload.data.savingsGoals || [];
+          const cloudRecs = payload.data.recurringTransactions || [];
+
+          if (cloudTxns.length >= txns.length) {
+            accs = cloudAccs.length ? cloudAccs : accs;
+            cats = cloudCats.length ? cloudCats : cats;
+            txns = cloudTxns;
+            bdgs = cloudBdgs.length ? cloudBdgs : bdgs;
+            sgs = cloudSgs.length ? cloudSgs : sgs;
+            recs = cloudRecs.length ? cloudRecs : recs;
+
+            setLocal('accounts', accs);
+            setLocal('categories', cats);
+            setLocal('transactions', txns);
+            setLocal('budgets', bdgs);
+            setLocal('savings', sgs);
+            setLocal('recurring', recs);
+
+            hydrateAndSetState(accs, cats, txns, bdgs, sgs, recs);
+          }
+        } else if (txns.length > 0 || accs.some((a) => Number(a.current_balance) > 0)) {
+          // Push local data to initialize cloud
+          syncWithCloud({
+            accounts: accs,
+            categories: cats,
+            transactions: txns,
+            budgets: bdgs,
+            savingsGoals: sgs,
+            recurringTransactions: recs,
+          });
+        }
+        setSyncStatus('saved');
+        setLastSyncedAt(new Date());
+      } else {
+        setSyncStatus('error');
+      }
+    } catch {
+      setSyncStatus(typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'error');
     }
-  }, [
-    user,
-    fetchAccounts,
-    fetchCategories,
-    fetchTransactions,
-    fetchBudgets,
-    fetchSavingsGoals,
-    fetchRecurringTransactions,
-  ]);
+  }, [user, syncWithCloud]);
 
   // Fetch all data when user is authenticated
   useEffect(() => {
@@ -353,6 +489,16 @@ function setLocal<T>(key: string, data: T) {
     window.addEventListener('visibilitychange', handleFocusSync);
     window.addEventListener('focus', handleFocusSync);
 
+    // 4. Automatic Cloud Sync on Network Reconnect
+    const handleOnline = () => {
+      syncWithCloud();
+    };
+    const handleOffline = () => {
+      setSyncStatus('offline');
+    };
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
     return () => {
       if (channel) {
         try {
@@ -366,8 +512,10 @@ function setLocal<T>(key: string, data: T) {
       }
       window.removeEventListener('visibilitychange', handleFocusSync);
       window.removeEventListener('focus', handleFocusSync);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
     };
-  }, [user, refreshData]);
+  }, [user, refreshData, syncWithCloud]);
 
   // ═══════════════════════════════════════════════════════════════════════
   // ACCOUNT BALANCE RECALCULATION
@@ -375,70 +523,27 @@ function setLocal<T>(key: string, data: T) {
 
   const recalculateAccountBalance = useCallback(
     async (accountId: string) => {
-      if (!isSupabaseConfigured()) {
-        const txns = getLocal<Transaction[]>('transactions', INITIAL_TRANSACTIONS);
-        const accs = getLocal<Account[]>('accounts', INITIAL_ACCOUNTS);
-        const account = accs.find((a) => a.id === accountId);
-        if (!account) return;
-
-        let balance = Number(account.opening_balance);
-        for (const txn of txns) {
-          const amount = Number(txn.amount);
-          if (txn.account_id === accountId) {
-            if (txn.type === 'income' || txn.type === 'refund') balance += amount;
-            else if (txn.type === 'expense' || txn.type === 'transfer') balance -= amount;
-          }
-          if (txn.to_account_id === accountId && txn.type === 'transfer') {
-            balance += amount;
-          }
-        }
-        account.current_balance = balance;
-        setLocal('accounts', accs);
-        setAccounts([...accs]);
-        return;
-      }
-
-      // Fetch all transactions for this account
-      const { data: txns, error: txnError } = await supabase
-        .from('transactions')
-        .select('*')
-        .or(`account_id.eq.${accountId},to_account_id.eq.${accountId}`);
-
-      if (txnError) {
-        console.error('Error fetching transactions for balance:', txnError);
-        return;
-      }
-
-      const account = accounts.find((a) => a.id === accountId);
+      const txns = getLocal<Transaction[]>('transactions', INITIAL_TRANSACTIONS);
+      const accs = getLocal<Account[]>('accounts', INITIAL_ACCOUNTS);
+      const account = accs.find((a) => a.id === accountId);
       if (!account) return;
 
-      let balance = Number(account.opening_balance);
-
-      for (const txn of txns || []) {
+      let balance = Number(account.opening_balance || 0);
+      for (const txn of txns) {
         const amount = Number(txn.amount);
-
         if (txn.account_id === accountId) {
-          if (txn.type === 'income' || txn.type === 'refund') {
-            balance += amount;
-          } else if (txn.type === 'expense') {
-            balance -= amount;
-          } else if (txn.type === 'transfer') {
-            balance -= amount;
-          }
+          if (txn.type === 'income' || txn.type === 'refund') balance += amount;
+          else if (txn.type === 'expense' || txn.type === 'transfer') balance -= amount;
         }
-
         if (txn.to_account_id === accountId && txn.type === 'transfer') {
           balance += amount;
         }
       }
-
-      // Update account balance in DB
-      await supabase
-        .from('accounts')
-        .update({ current_balance: balance })
-        .eq('id', accountId);
+      account.current_balance = balance;
+      setLocal('accounts', accs);
+      setAccounts([...accs]);
     },
-    [accounts]
+    []
   );
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -449,61 +554,18 @@ function setLocal<T>(key: string, data: T) {
     async (txn: Partial<Transaction>) => {
       if (!user) throw new Error('Not authenticated');
 
-      if (!isSupabaseConfigured()) {
-        const txns = getLocal<Transaction[]>('transactions', INITIAL_TRANSACTIONS);
-        const newTxn: Transaction = {
-          id: `txn-${Date.now()}`,
-          user_id: user.id,
-          type: txn.type || 'expense',
-          amount: Number(txn.amount),
-          date: txn.date || new Date().toISOString().slice(0, 10),
-          time: txn.time || null,
-          description: txn.description || '',
-          category_id: txn.category_id || null,
-          subcategory: txn.subcategory || null,
-          account_id: txn.account_id || '',
-          to_account_id: txn.to_account_id || null,
-          payment_method: txn.payment_method || null,
-          merchant: txn.merchant || null,
-          notes: txn.notes || null,
-          tags: txn.tags || [],
-          is_recurring: txn.is_recurring || false,
-          recurring_id: txn.recurring_id || null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-        txns.unshift(newTxn);
-        setLocal('transactions', txns);
-        if (txn.account_id) await recalculateAccountBalance(txn.account_id);
-        if (txn.to_account_id) await recalculateAccountBalance(txn.to_account_id);
-        await refreshData();
-        broadcastDataChange();
-
-        const cat = categories.find((c) => c.id === txn.category_id);
-        const acc = accounts.find((a) => a.id === txn.account_id);
-        addNotification({
-          type: txn.type === 'income' ? 'income_added' : txn.type === 'transfer' ? 'transfer_added' : 'expense_added',
-          title: txn.type === 'income' ? 'Income Added' : txn.type === 'transfer' ? 'Transfer Completed' : 'Expense Added',
-          description: txn.description || 'Transaction',
-          amount: Number(txn.amount),
-          category: cat?.name,
-          account: acc?.name,
-        });
-
-        toast.success('Transaction added');
-        return;
-      }
-
-      const { error: err } = await supabase.from('transactions').insert({
+      const txns = getLocal<Transaction[]>('transactions', INITIAL_TRANSACTIONS);
+      const newTxn: Transaction = {
+        id: `txn-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         user_id: user.id,
-        type: txn.type,
-        amount: txn.amount,
-        date: txn.date,
+        type: txn.type || 'expense',
+        amount: Number(txn.amount),
+        date: txn.date || new Date().toISOString().slice(0, 10),
         time: txn.time || null,
         description: txn.description || '',
         category_id: txn.category_id || null,
         subcategory: txn.subcategory || null,
-        account_id: txn.account_id,
+        account_id: txn.account_id || '',
         to_account_id: txn.to_account_id || null,
         payment_method: txn.payment_method || null,
         merchant: txn.merchant || null,
@@ -511,16 +573,19 @@ function setLocal<T>(key: string, data: T) {
         tags: txn.tags || [],
         is_recurring: txn.is_recurring || false,
         recurring_id: txn.recurring_id || null,
-      });
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
 
-      if (err) throw err;
+      txns.unshift(newTxn);
+      setLocal('transactions', txns);
 
-      // Recalculate balances
       if (txn.account_id) await recalculateAccountBalance(txn.account_id);
       if (txn.to_account_id) await recalculateAccountBalance(txn.to_account_id);
 
       await refreshData();
       broadcastDataChange();
+      syncWithCloud();
 
       const cat = categories.find((c) => c.id === txn.category_id);
       const acc = accounts.find((a) => a.id === txn.account_id);
@@ -535,143 +600,61 @@ function setLocal<T>(key: string, data: T) {
 
       toast.success('Transaction added');
     },
-    [user, categories, accounts, recalculateAccountBalance, refreshData, broadcastDataChange, addNotification]
+    [user, categories, accounts, recalculateAccountBalance, refreshData, broadcastDataChange, syncWithCloud, addNotification]
   );
 
   const updateTransaction = useCallback(
     async (id: string, txn: Partial<Transaction>) => {
       if (!user) throw new Error('Not authenticated');
 
-      if (!isSupabaseConfigured()) {
-        const txns = getLocal<Transaction[]>('transactions', INITIAL_TRANSACTIONS);
-        const idx = txns.findIndex((t) => t.id === id);
-        if (idx !== -1) {
-          const old = txns[idx];
-          txns[idx] = { ...old, ...txn, updated_at: new Date().toISOString() };
-          setLocal('transactions', txns);
-          if (old.account_id) await recalculateAccountBalance(old.account_id);
-          if (old.to_account_id) await recalculateAccountBalance(old.to_account_id);
-          if (txn.account_id) await recalculateAccountBalance(txn.account_id);
-          if (txn.to_account_id) await recalculateAccountBalance(txn.to_account_id);
-        }
-        await refreshData();
-        broadcastDataChange();
+      const txns = getLocal<Transaction[]>('transactions', INITIAL_TRANSACTIONS);
+      const idx = txns.findIndex((t) => t.id === id);
+      if (idx === -1) return;
 
-        const cat = categories.find((c) => c.id === txn.category_id);
-        const acc = accounts.find((a) => a.id === txn.account_id);
-        addNotification({
-          type: txn.type === 'income' ? 'income_updated' : 'expense_updated',
-          title: 'Transaction Updated',
-          description: txn.description || 'Transaction updated',
-          amount: txn.amount !== undefined ? Number(txn.amount) : undefined,
-          category: cat?.name,
-          account: acc?.name,
-        });
+      const old = txns[idx];
+      txns[idx] = { ...old, ...txn, updated_at: new Date().toISOString() };
+      setLocal('transactions', txns);
 
-        toast.success('Transaction updated');
-        return;
-      }
-
-      // Get old transaction to know which accounts need rebalancing
-      const oldTxn = transactions.find((t) => t.id === id);
-
-      const { error: err } = await supabase
-        .from('transactions')
-        .update({
-          type: txn.type,
-          amount: txn.amount,
-          date: txn.date,
-          time: txn.time,
-          description: txn.description,
-          category_id: txn.category_id,
-          subcategory: txn.subcategory,
-          account_id: txn.account_id,
-          to_account_id: txn.to_account_id,
-          payment_method: txn.payment_method,
-          merchant: txn.merchant,
-          notes: txn.notes,
-          tags: txn.tags,
-          is_recurring: txn.is_recurring,
-          recurring_id: txn.recurring_id,
-        })
-        .eq('id', id);
-
-      if (err) throw err;
-
-      // Recalculate balances for affected accounts
-      const accountIds = new Set<string>();
-      if (oldTxn?.account_id) accountIds.add(oldTxn.account_id);
-      if (oldTxn?.to_account_id) accountIds.add(oldTxn.to_account_id);
-      if (txn.account_id) accountIds.add(txn.account_id);
-      if (txn.to_account_id) accountIds.add(txn.to_account_id);
-
-      for (const accId of accountIds) {
-        await recalculateAccountBalance(accId);
-      }
+      if (old.account_id) await recalculateAccountBalance(old.account_id);
+      if (old.to_account_id) await recalculateAccountBalance(old.to_account_id);
+      if (txn.account_id && txn.account_id !== old.account_id) await recalculateAccountBalance(txn.account_id);
+      if (txn.to_account_id && txn.to_account_id !== old.to_account_id) await recalculateAccountBalance(txn.to_account_id);
 
       await refreshData();
       broadcastDataChange();
+      syncWithCloud();
 
-      const cat = categories.find((c) => c.id === txn.category_id) || oldTxn?.category;
-      const acc = accounts.find((a) => a.id === txn.account_id) || oldTxn?.account;
+      const cat = categories.find((c) => c.id === (txn.category_id || old.category_id));
+      const acc = accounts.find((a) => a.id === (txn.account_id || old.account_id));
       addNotification({
-        type: txn.type === 'income' || oldTxn?.type === 'income' ? 'income_updated' : 'expense_updated',
+        type: (txn.type || old.type) === 'income' ? 'income_updated' : 'expense_updated',
         title: 'Transaction Updated',
-        description: txn.description || oldTxn?.description || 'Transaction updated',
-        amount: txn.amount !== undefined ? Number(txn.amount) : oldTxn ? Number(oldTxn.amount) : undefined,
+        description: txn.description || old.description || 'Transaction updated',
+        amount: txn.amount !== undefined ? Number(txn.amount) : Number(old.amount),
         category: cat?.name,
         account: acc?.name,
       });
 
       toast.success('Transaction updated');
     },
-    [user, categories, accounts, transactions, recalculateAccountBalance, refreshData, broadcastDataChange, addNotification]
+    [user, categories, accounts, recalculateAccountBalance, refreshData, broadcastDataChange, syncWithCloud, addNotification]
   );
 
   const deleteTransaction = useCallback(
     async (id: string) => {
       if (!user) throw new Error('Not authenticated');
 
-      if (!isSupabaseConfigured()) {
-        const txns = getLocal<Transaction[]>('transactions', INITIAL_TRANSACTIONS);
-        const oldTxn = txns.find((t) => t.id === id);
-        const filtered = txns.filter((t) => t.id !== id);
-        setLocal('transactions', filtered);
-        if (oldTxn?.account_id) await recalculateAccountBalance(oldTxn.account_id);
-        if (oldTxn?.to_account_id) await recalculateAccountBalance(oldTxn.to_account_id);
-        await refreshData();
-        broadcastDataChange();
+      const txns = getLocal<Transaction[]>('transactions', INITIAL_TRANSACTIONS);
+      const oldTxn = txns.find((t) => t.id === id);
+      const filtered = txns.filter((t) => t.id !== id);
+      setLocal('transactions', filtered);
 
-        if (oldTxn) {
-          addNotification({
-            type: oldTxn.type === 'income' ? 'income_deleted' : 'expense_deleted',
-            title: oldTxn.type === 'income' ? 'Income Deleted' : 'Expense Deleted',
-            description: oldTxn.description || 'Transaction deleted',
-            amount: Number(oldTxn.amount),
-            category: oldTxn.category?.name,
-            account: oldTxn.account?.name,
-          });
-        }
-
-        toast.success('Transaction deleted');
-        return;
-      }
-
-      const oldTxn = transactions.find((t) => t.id === id);
-
-      const { error: err } = await supabase
-        .from('transactions')
-        .delete()
-        .eq('id', id);
-
-      if (err) throw err;
-
-      // Recalculate balances
       if (oldTxn?.account_id) await recalculateAccountBalance(oldTxn.account_id);
       if (oldTxn?.to_account_id) await recalculateAccountBalance(oldTxn.to_account_id);
 
       await refreshData();
       broadcastDataChange();
+      syncWithCloud();
 
       if (oldTxn) {
         addNotification({
@@ -686,7 +669,7 @@ function setLocal<T>(key: string, data: T) {
 
       toast.success('Transaction deleted');
     },
-    [user, transactions, recalculateAccountBalance, refreshData, broadcastDataChange, addNotification]
+    [user, recalculateAccountBalance, refreshData, broadcastDataChange, syncWithCloud, addNotification]
   );
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -697,96 +680,55 @@ function setLocal<T>(key: string, data: T) {
     async (account: Partial<Account>) => {
       if (!user) throw new Error('Not authenticated');
 
-      if (!isSupabaseConfigured()) {
-        const accs = getLocal<Account[]>('accounts', INITIAL_ACCOUNTS);
-        const newAcc: Account = {
-          id: `acc-${Date.now()}`,
-          user_id: user.id,
-          name: account.name || 'Account',
-          type: account.type || 'cash',
-          opening_balance: account.opening_balance || 0,
-          current_balance: account.opening_balance || 0,
-          currency: account.currency || 'BDT',
-          icon: account.icon || 'Wallet',
-          color: account.color || '#14b8a6',
-          is_active: account.is_active !== undefined ? account.is_active : true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-        accs.push(newAcc);
-        setLocal('accounts', accs);
-        await refreshData();
-        broadcastDataChange();
-        addNotification({
-          type: 'balance_updated',
-          title: 'Account / Wallet Added',
-          description: newAcc.name,
-          amount: newAcc.opening_balance,
-          account: newAcc.name,
-        });
-        toast.success('Account added');
-        return;
-      }
-
-      const { error: err } = await supabase.from('accounts').insert({
+      const accs = getLocal<Account[]>('accounts', INITIAL_ACCOUNTS);
+      const newAcc: Account = {
+        id: `acc-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         user_id: user.id,
-        name: account.name,
+        name: account.name || 'Account',
         type: account.type || 'cash',
-        opening_balance: account.opening_balance || 0,
-        current_balance: account.opening_balance || 0,
+        opening_balance: Number(account.opening_balance) || 0,
+        current_balance: Number(account.opening_balance) || 0,
         currency: account.currency || 'BDT',
         icon: account.icon || 'Wallet',
         color: account.color || '#14b8a6',
         is_active: account.is_active !== undefined ? account.is_active : true,
-      });
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      accs.push(newAcc);
+      setLocal('accounts', accs);
 
-      if (err) throw err;
       await refreshData();
       broadcastDataChange();
+      syncWithCloud();
+
       addNotification({
         type: 'balance_updated',
         title: 'Account / Wallet Added',
-        description: account.name || 'Account added',
-        amount: account.opening_balance || 0,
-        account: account.name,
+        description: newAcc.name,
+        amount: newAcc.opening_balance,
+        account: newAcc.name,
       });
       toast.success('Account added');
     },
-    [user, refreshData, broadcastDataChange, addNotification]
+    [user, refreshData, broadcastDataChange, syncWithCloud, addNotification]
   );
 
   const updateAccount = useCallback(
     async (id: string, account: Partial<Account>) => {
       if (!user) throw new Error('Not authenticated');
 
-      if (!isSupabaseConfigured()) {
-        const accs = getLocal<Account[]>('accounts', INITIAL_ACCOUNTS);
-        const idx = accs.findIndex((a) => a.id === id);
-        if (idx !== -1) {
-          accs[idx] = { ...accs[idx], ...account, updated_at: new Date().toISOString() };
-          setLocal('accounts', accs);
-        }
-        await refreshData();
-        broadcastDataChange();
-        addNotification({
-          type: 'balance_updated',
-          title: 'Wallet / Balance Updated',
-          description: account.name ? `${account.name} balance updated` : 'Account updated',
-          amount: account.current_balance !== undefined ? Number(account.current_balance) : undefined,
-          account: account.name,
-        });
-        toast.success('Account updated');
-        return;
+      const accs = getLocal<Account[]>('accounts', INITIAL_ACCOUNTS);
+      const idx = accs.findIndex((a) => a.id === id);
+      if (idx !== -1) {
+        accs[idx] = { ...accs[idx], ...account, updated_at: new Date().toISOString() };
+        setLocal('accounts', accs);
       }
 
-      const { error: err } = await supabase
-        .from('accounts')
-        .update(account)
-        .eq('id', id);
-
-      if (err) throw err;
       await refreshData();
       broadcastDataChange();
+      syncWithCloud();
+
       addNotification({
         type: 'balance_updated',
         title: 'Wallet / Balance Updated',
@@ -796,51 +738,32 @@ function setLocal<T>(key: string, data: T) {
       });
       toast.success('Account updated');
     },
-    [user, refreshData, broadcastDataChange, addNotification]
+    [user, refreshData, broadcastDataChange, syncWithCloud, addNotification]
   );
 
   const deleteAccount = useCallback(
     async (id: string) => {
       if (!user) throw new Error('Not authenticated');
 
-      if (!isSupabaseConfigured()) {
-        const accs = getLocal<Account[]>('accounts', INITIAL_ACCOUNTS);
-        const old = accs.find((a) => a.id === id);
-        setLocal('accounts', accs.filter((a) => a.id !== id));
-        await refreshData();
-        broadcastDataChange();
-        if (old) {
-          addNotification({
-            type: 'balance_updated',
-            title: 'Account Removed',
-            description: old.name,
-            account: old.name,
-          });
-        }
-        toast.success('Account deleted');
-        return;
-      }
+      const accs = getLocal<Account[]>('accounts', INITIAL_ACCOUNTS);
+      const old = accs.find((a) => a.id === id);
+      setLocal('accounts', accs.filter((a) => a.id !== id));
 
-      const oldAcc = accounts.find((a) => a.id === id);
-      const { error: err } = await supabase
-        .from('accounts')
-        .delete()
-        .eq('id', id);
-
-      if (err) throw err;
       await refreshData();
       broadcastDataChange();
-      if (oldAcc) {
+      syncWithCloud();
+
+      if (old) {
         addNotification({
           type: 'balance_updated',
           title: 'Account Removed',
-          description: oldAcc.name,
-          account: oldAcc.name,
+          description: old.name,
+          account: old.name,
         });
       }
       toast.success('Account deleted');
     },
-    [user, accounts, refreshData, broadcastDataChange, addNotification]
+    [user, refreshData, broadcastDataChange, syncWithCloud, addNotification]
   );
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -851,95 +774,65 @@ function setLocal<T>(key: string, data: T) {
     async (category: Partial<Category>) => {
       if (!user) throw new Error('Not authenticated');
 
-      if (!isSupabaseConfigured()) {
-        const cats = getLocal<Category[]>('categories', INITIAL_CATEGORIES);
-        const newCat: Category = {
-          id: `cat-${Date.now()}`,
-          user_id: user.id,
-          name: category.name || 'Category',
-          type: category.type || 'expense',
-          icon: category.icon || 'Tag',
-          color: category.color || '#6B7280',
-          parent_id: category.parent_id || null,
-          sort_order: category.sort_order || cats.length + 1,
-          is_default: false,
-          created_at: new Date().toISOString(),
-        };
-        cats.push(newCat);
-        setLocal('categories', cats);
-        await refreshData();
-        toast.success('Category added');
-        return;
-      }
-
-      const { error: err } = await supabase.from('categories').insert({
+      const cats = getLocal<Category[]>('categories', INITIAL_CATEGORIES);
+      const newCat: Category = {
+        id: `cat-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         user_id: user.id,
-        name: category.name,
+        name: category.name || 'Category',
         type: category.type || 'expense',
         icon: category.icon || 'Tag',
         color: category.color || '#6B7280',
         parent_id: category.parent_id || null,
-        sort_order: category.sort_order || 0,
+        sort_order: category.sort_order || cats.length + 1,
         is_default: false,
-      });
+        created_at: new Date().toISOString(),
+      };
+      cats.push(newCat);
+      setLocal('categories', cats);
 
-      if (err) throw err;
       await refreshData();
+      broadcastDataChange();
+      syncWithCloud();
+
       toast.success('Category added');
     },
-    [user, refreshData]
+    [user, refreshData, broadcastDataChange, syncWithCloud]
   );
 
   const updateCategory = useCallback(
     async (id: string, category: Partial<Category>) => {
       if (!user) throw new Error('Not authenticated');
 
-      if (!isSupabaseConfigured()) {
-        const cats = getLocal<Category[]>('categories', INITIAL_CATEGORIES);
-        const idx = cats.findIndex((c) => c.id === id);
-        if (idx !== -1) {
-          cats[idx] = { ...cats[idx], ...category };
-          setLocal('categories', cats);
-        }
-        await refreshData();
-        toast.success('Category updated');
-        return;
+      const cats = getLocal<Category[]>('categories', INITIAL_CATEGORIES);
+      const idx = cats.findIndex((c) => c.id === id);
+      if (idx !== -1) {
+        cats[idx] = { ...cats[idx], ...category };
+        setLocal('categories', cats);
       }
 
-      const { error: err } = await supabase
-        .from('categories')
-        .update(category)
-        .eq('id', id);
-
-      if (err) throw err;
       await refreshData();
+      broadcastDataChange();
+      syncWithCloud();
+
       toast.success('Category updated');
     },
-    [user, refreshData]
+    [user, refreshData, broadcastDataChange, syncWithCloud]
   );
 
   const deleteCategory = useCallback(
     async (id: string) => {
       if (!user) throw new Error('Not authenticated');
 
-      if (!isSupabaseConfigured()) {
-        const cats = getLocal<Category[]>('categories', INITIAL_CATEGORIES);
-        setLocal('categories', cats.filter((c) => c.id !== id));
-        await refreshData();
-        toast.success('Category deleted');
-        return;
-      }
+      const cats = getLocal<Category[]>('categories', INITIAL_CATEGORIES);
+      setLocal('categories', cats.filter((c) => c.id !== id));
 
-      const { error: err } = await supabase
-        .from('categories')
-        .delete()
-        .eq('id', id);
-
-      if (err) throw err;
       await refreshData();
+      broadcastDataChange();
+      syncWithCloud();
+
       toast.success('Category deleted');
     },
-    [user, refreshData]
+    [user, refreshData, broadcastDataChange, syncWithCloud]
   );
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -950,105 +843,71 @@ function setLocal<T>(key: string, data: T) {
     async (budget: Partial<Budget>) => {
       if (!user) throw new Error('Not authenticated');
 
-      if (!isSupabaseConfigured()) {
-        const bdgs = getLocal<Budget[]>('budgets', INITIAL_BUDGETS);
-        const newBdg: Budget = {
-          id: `bdg-${Date.now()}`,
-          user_id: user.id,
-          name: budget.name || 'Budget',
-          amount: budget.amount || 0,
-          spent: 0,
-          category_id: budget.category_id || null,
-          period: budget.period || 'monthly',
-          start_date: budget.start_date || '',
-          end_date: budget.end_date || '',
-          alert_threshold_50: budget.alert_threshold_50 ?? false,
-          alert_threshold_75: budget.alert_threshold_75 ?? true,
-          alert_threshold_90: budget.alert_threshold_90 ?? true,
-          alert_threshold_100: budget.alert_threshold_100 ?? true,
-          is_active: budget.is_active !== undefined ? budget.is_active : true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-        bdgs.push(newBdg);
-        setLocal('budgets', bdgs);
-        await refreshData();
-        toast.success('Budget created');
-        return;
-      }
-
-      const { error: err } = await supabase.from('budgets').insert({
+      const bdgs = getLocal<Budget[]>('budgets', INITIAL_BUDGETS);
+      const newBdg: Budget = {
+        id: `bdg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         user_id: user.id,
-        name: budget.name,
-        amount: budget.amount,
+        name: budget.name || 'Budget',
+        amount: Number(budget.amount) || 0,
+        spent: 0,
         category_id: budget.category_id || null,
         period: budget.period || 'monthly',
-        start_date: budget.start_date,
-        end_date: budget.end_date,
+        start_date: budget.start_date || '',
+        end_date: budget.end_date || '',
         alert_threshold_50: budget.alert_threshold_50 ?? false,
         alert_threshold_75: budget.alert_threshold_75 ?? true,
         alert_threshold_90: budget.alert_threshold_90 ?? true,
         alert_threshold_100: budget.alert_threshold_100 ?? true,
         is_active: budget.is_active !== undefined ? budget.is_active : true,
-      });
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      bdgs.push(newBdg);
+      setLocal('budgets', bdgs);
 
-      if (err) throw err;
       await refreshData();
+      broadcastDataChange();
+      syncWithCloud();
+
       toast.success('Budget created');
     },
-    [user, refreshData]
+    [user, refreshData, broadcastDataChange, syncWithCloud]
   );
 
   const updateBudget = useCallback(
     async (id: string, budget: Partial<Budget>) => {
       if (!user) throw new Error('Not authenticated');
 
-      if (!isSupabaseConfigured()) {
-        const bdgs = getLocal<Budget[]>('budgets', INITIAL_BUDGETS);
-        const idx = bdgs.findIndex((b) => b.id === id);
-        if (idx !== -1) {
-          bdgs[idx] = { ...bdgs[idx], ...budget, updated_at: new Date().toISOString() };
-          setLocal('budgets', bdgs);
-        }
-        await refreshData();
-        toast.success('Budget updated');
-        return;
+      const bdgs = getLocal<Budget[]>('budgets', INITIAL_BUDGETS);
+      const idx = bdgs.findIndex((b) => b.id === id);
+      if (idx !== -1) {
+        bdgs[idx] = { ...bdgs[idx], ...budget, updated_at: new Date().toISOString() };
+        setLocal('budgets', bdgs);
       }
 
-      const { error: err } = await supabase
-        .from('budgets')
-        .update(budget)
-        .eq('id', id);
-
-      if (err) throw err;
       await refreshData();
+      broadcastDataChange();
+      syncWithCloud();
+
       toast.success('Budget updated');
     },
-    [user, refreshData]
+    [user, refreshData, broadcastDataChange, syncWithCloud]
   );
 
   const deleteBudget = useCallback(
     async (id: string) => {
       if (!user) throw new Error('Not authenticated');
 
-      if (!isSupabaseConfigured()) {
-        const bdgs = getLocal<Budget[]>('budgets', INITIAL_BUDGETS);
-        setLocal('budgets', bdgs.filter((b) => b.id !== id));
-        await refreshData();
-        toast.success('Budget deleted');
-        return;
-      }
+      const bdgs = getLocal<Budget[]>('budgets', INITIAL_BUDGETS);
+      setLocal('budgets', bdgs.filter((b) => b.id !== id));
 
-      const { error: err } = await supabase
-        .from('budgets')
-        .delete()
-        .eq('id', id);
-
-      if (err) throw err;
       await refreshData();
+      broadcastDataChange();
+      syncWithCloud();
+
       toast.success('Budget deleted');
     },
-    [user, refreshData]
+    [user, refreshData, broadcastDataChange, syncWithCloud]
   );
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -1059,160 +918,94 @@ function setLocal<T>(key: string, data: T) {
     async (goal: Partial<SavingsGoal>) => {
       if (!user) throw new Error('Not authenticated');
 
-      if (!isSupabaseConfigured()) {
-        const sgs = getLocal<SavingsGoal[]>('savings', INITIAL_SAVINGS_GOALS);
-        const newGoal: SavingsGoal = {
-          id: `sg-${Date.now()}`,
-          user_id: user.id,
-          name: goal.name || 'Savings Goal',
-          target_amount: goal.target_amount || 0,
-          current_amount: goal.current_amount || 0,
-          target_date: goal.target_date || null,
-          monthly_contribution: goal.monthly_contribution || null,
-          icon: goal.icon || 'PiggyBank',
-          color: goal.color || '#14b8a6',
-          is_completed: false,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-        sgs.push(newGoal);
-        setLocal('savings', sgs);
-        await refreshData();
-        toast.success('Savings goal created');
-        return;
-      }
-
-      const { error: err } = await supabase.from('savings_goals').insert({
+      const sgs = getLocal<SavingsGoal[]>('savings', INITIAL_SAVINGS_GOALS);
+      const newGoal: SavingsGoal = {
+        id: `sg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         user_id: user.id,
-        name: goal.name,
-        target_amount: goal.target_amount,
-        current_amount: goal.current_amount || 0,
+        name: goal.name || 'Savings Goal',
+        target_amount: Number(goal.target_amount) || 0,
+        current_amount: Number(goal.current_amount) || 0,
         target_date: goal.target_date || null,
-        monthly_contribution: goal.monthly_contribution || null,
+        monthly_contribution: goal.monthly_contribution ? Number(goal.monthly_contribution) : null,
         icon: goal.icon || 'PiggyBank',
         color: goal.color || '#14b8a6',
         is_completed: false,
-      });
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      sgs.push(newGoal);
+      setLocal('savings', sgs);
 
-      if (err) throw err;
       await refreshData();
+      broadcastDataChange();
+      syncWithCloud();
+
       toast.success('Savings goal created');
     },
-    [user, refreshData]
+    [user, refreshData, broadcastDataChange, syncWithCloud]
   );
 
   const updateSavingsGoal = useCallback(
     async (id: string, goal: Partial<SavingsGoal>) => {
       if (!user) throw new Error('Not authenticated');
 
-      if (!isSupabaseConfigured()) {
-        const sgs = getLocal<SavingsGoal[]>('savings', INITIAL_SAVINGS_GOALS);
-        const idx = sgs.findIndex((s) => s.id === id);
-        if (idx !== -1) {
-          sgs[idx] = { ...sgs[idx], ...goal, updated_at: new Date().toISOString() };
-          setLocal('savings', sgs);
-        }
-        await refreshData();
-        toast.success('Savings goal updated');
-        return;
+      const sgs = getLocal<SavingsGoal[]>('savings', INITIAL_SAVINGS_GOALS);
+      const idx = sgs.findIndex((s) => s.id === id);
+      if (idx !== -1) {
+        sgs[idx] = { ...sgs[idx], ...goal, updated_at: new Date().toISOString() };
+        setLocal('savings', sgs);
       }
 
-      const { error: err } = await supabase
-        .from('savings_goals')
-        .update(goal)
-        .eq('id', id);
-
-      if (err) throw err;
       await refreshData();
+      broadcastDataChange();
+      syncWithCloud();
+
       toast.success('Savings goal updated');
     },
-    [user, refreshData]
+    [user, refreshData, broadcastDataChange, syncWithCloud]
   );
 
   const deleteSavingsGoal = useCallback(
     async (id: string) => {
       if (!user) throw new Error('Not authenticated');
 
-      if (!isSupabaseConfigured()) {
-        const sgs = getLocal<SavingsGoal[]>('savings', INITIAL_SAVINGS_GOALS);
-        setLocal('savings', sgs.filter((s) => s.id !== id));
-        await refreshData();
-        toast.success('Savings goal deleted');
-        return;
-      }
+      const sgs = getLocal<SavingsGoal[]>('savings', INITIAL_SAVINGS_GOALS);
+      setLocal('savings', sgs.filter((s) => s.id !== id));
 
-      const { error: err } = await supabase
-        .from('savings_goals')
-        .delete()
-        .eq('id', id);
-
-      if (err) throw err;
       await refreshData();
+      broadcastDataChange();
+      syncWithCloud();
+
       toast.success('Savings goal deleted');
     },
-    [user, refreshData]
+    [user, refreshData, broadcastDataChange, syncWithCloud]
   );
 
   const addContribution = useCallback(
     async (contribution: Partial<SavingsContribution>) => {
       if (!user) throw new Error('Not authenticated');
 
-      if (!isSupabaseConfigured()) {
-        const sgs = getLocal<SavingsGoal[]>('savings', INITIAL_SAVINGS_GOALS);
-        const goal = sgs.find((g) => g.id === contribution.goal_id);
-        if (goal) {
-          const delta =
-            contribution.type === 'withdrawal'
-              ? -Number(contribution.amount)
-              : Number(contribution.amount);
-          goal.current_amount = Math.max(0, Number(goal.current_amount) + delta);
-          goal.is_completed = goal.current_amount >= Number(goal.target_amount);
-          setLocal('savings', sgs);
-        }
-        await refreshData();
-        toast.success(
-          contribution.type === 'withdrawal' ? 'Withdrawal recorded' : 'Contribution added'
-        );
-        return;
-      }
-
-      // Insert the contribution record
-      const { error: err } = await supabase.from('savings_contributions').insert({
-        goal_id: contribution.goal_id,
-        user_id: user.id,
-        amount: contribution.amount,
-        type: contribution.type || 'contribution',
-        note: contribution.note || null,
-        date: contribution.date || format(new Date(), 'yyyy-MM-dd'),
-      });
-
-      if (err) throw err;
-
-      // Update the savings goal's current_amount
-      const goal = savingsGoals.find((g) => g.id === contribution.goal_id);
+      const sgs = getLocal<SavingsGoal[]>('savings', INITIAL_SAVINGS_GOALS);
+      const goal = sgs.find((g) => g.id === contribution.goal_id);
       if (goal) {
         const delta =
           contribution.type === 'withdrawal'
             ? -Number(contribution.amount)
             : Number(contribution.amount);
-        const newAmount = Math.max(0, Number(goal.current_amount) + delta);
-        const isCompleted = newAmount >= Number(goal.target_amount);
-
-        await supabase
-          .from('savings_goals')
-          .update({
-            current_amount: newAmount,
-            is_completed: isCompleted,
-          })
-          .eq('id', contribution.goal_id);
+        goal.current_amount = Math.max(0, Number(goal.current_amount) + delta);
+        goal.is_completed = goal.current_amount >= Number(goal.target_amount);
+        setLocal('savings', sgs);
       }
 
       await refreshData();
+      broadcastDataChange();
+      syncWithCloud();
+
       toast.success(
         contribution.type === 'withdrawal' ? 'Withdrawal recorded' : 'Contribution added'
       );
     },
-    [user, savingsGoals, refreshData]
+    [user, refreshData, broadcastDataChange, syncWithCloud]
   );
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -1223,108 +1016,77 @@ function setLocal<T>(key: string, data: T) {
     async (recurring: Partial<RecurringTransaction>) => {
       if (!user) throw new Error('Not authenticated');
 
-      if (!isSupabaseConfigured()) {
-        const recs = getLocal<RecurringTransaction[]>('recurring', INITIAL_RECURRING);
-        const newRec: RecurringTransaction = {
-          id: `rec-${Date.now()}`,
-          user_id: user.id,
-          type: recurring.type || 'expense',
-          amount: recurring.amount || 0,
-          description: recurring.description || '',
-          category_id: recurring.category_id || null,
-          account_id: recurring.account_id || '',
-          frequency: recurring.frequency || 'monthly',
-          next_due_date: recurring.next_due_date || new Date().toISOString().slice(0, 10),
-          last_processed_date: null,
-          is_active: recurring.is_active !== undefined ? recurring.is_active : true,
-          auto_create: recurring.auto_create || false,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-        recs.push(newRec);
-        setLocal('recurring', recs);
-        await refreshData();
-        toast.success('Recurring transaction created');
-        return;
-      }
-
-      const { error: err } = await supabase.from('recurring_transactions').insert({
+      const recs = getLocal<RecurringTransaction[]>('recurring', INITIAL_RECURRING);
+      const newRec: RecurringTransaction = {
+        id: `rec-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         user_id: user.id,
         type: recurring.type || 'expense',
-        amount: recurring.amount,
+        amount: Number(recurring.amount) || 0,
         description: recurring.description || '',
         category_id: recurring.category_id || null,
-        account_id: recurring.account_id,
+        account_id: recurring.account_id || '',
         frequency: recurring.frequency || 'monthly',
-        next_due_date: recurring.next_due_date,
+        next_due_date: recurring.next_due_date || new Date().toISOString().slice(0, 10),
+        last_processed_date: null,
         is_active: recurring.is_active !== undefined ? recurring.is_active : true,
         auto_create: recurring.auto_create || false,
-      });
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      recs.push(newRec);
+      setLocal('recurring', recs);
 
-      if (err) throw err;
       await refreshData();
+      broadcastDataChange();
+      syncWithCloud();
+
       toast.success('Recurring transaction created');
     },
-    [user, refreshData]
+    [user, refreshData, broadcastDataChange, syncWithCloud]
   );
 
   const updateRecurring = useCallback(
     async (id: string, recurring: Partial<RecurringTransaction>) => {
       if (!user) throw new Error('Not authenticated');
 
-      if (!isSupabaseConfigured()) {
-        const recs = getLocal<RecurringTransaction[]>('recurring', INITIAL_RECURRING);
-        const idx = recs.findIndex((r) => r.id === id);
-        if (idx !== -1) {
-          recs[idx] = { ...recs[idx], ...recurring, updated_at: new Date().toISOString() };
-          setLocal('recurring', recs);
-        }
-        await refreshData();
-        toast.success('Recurring transaction updated');
-        return;
+      const recs = getLocal<RecurringTransaction[]>('recurring', INITIAL_RECURRING);
+      const idx = recs.findIndex((r) => r.id === id);
+      if (idx !== -1) {
+        recs[idx] = { ...recs[idx], ...recurring, updated_at: new Date().toISOString() };
+        setLocal('recurring', recs);
       }
 
-      const { error: err } = await supabase
-        .from('recurring_transactions')
-        .update(recurring)
-        .eq('id', id);
-
-      if (err) throw err;
       await refreshData();
+      broadcastDataChange();
+      syncWithCloud();
+
       toast.success('Recurring transaction updated');
     },
-    [user, refreshData]
+    [user, refreshData, broadcastDataChange, syncWithCloud]
   );
 
   const deleteRecurring = useCallback(
     async (id: string) => {
       if (!user) throw new Error('Not authenticated');
 
-      if (!isSupabaseConfigured()) {
-        const recs = getLocal<RecurringTransaction[]>('recurring', INITIAL_RECURRING);
-        setLocal('recurring', recs.filter((r) => r.id !== id));
-        await refreshData();
-        toast.success('Recurring transaction deleted');
-        return;
-      }
+      const recs = getLocal<RecurringTransaction[]>('recurring', INITIAL_RECURRING);
+      setLocal('recurring', recs.filter((r) => r.id !== id));
 
-      const { error: err } = await supabase
-        .from('recurring_transactions')
-        .delete()
-        .eq('id', id);
-
-      if (err) throw err;
       await refreshData();
+      broadcastDataChange();
+      syncWithCloud();
+
       toast.success('Recurring transaction deleted');
     },
-    [user, refreshData]
+    [user, refreshData, broadcastDataChange, syncWithCloud]
   );
 
   const markRecurringPaid = useCallback(
     async (id: string) => {
       if (!user) throw new Error('Not authenticated');
 
-      const recurring = recurringTransactions.find((r) => r.id === id);
+      const recs = getLocal<RecurringTransaction[]>('recurring', INITIAL_RECURRING);
+      const recurring = recs.find((r) => r.id === id);
       if (!recurring) throw new Error('Recurring transaction not found');
 
       // Create the actual transaction
@@ -1360,36 +1122,24 @@ function setLocal<T>(key: string, data: T) {
           nextDue = addMonths(currentDue, 1);
       }
 
-      if (!isSupabaseConfigured()) {
-        const recs = getLocal<RecurringTransaction[]>('recurring', INITIAL_RECURRING);
-        const idx = recs.findIndex((r) => r.id === id);
-        if (idx !== -1) {
-          recs[idx] = {
-            ...recs[idx],
-            next_due_date: format(nextDue, 'yyyy-MM-dd'),
-            last_processed_date: format(currentDue, 'yyyy-MM-dd'),
-            updated_at: new Date().toISOString(),
-          };
-          setLocal('recurring', recs);
-        }
-        await refreshData();
-        toast.success('Recurring transaction marked as paid');
-        return;
-      }
-
-      // Update recurring transaction with new due date
-      await supabase
-        .from('recurring_transactions')
-        .update({
+      const idx = recs.findIndex((r) => r.id === id);
+      if (idx !== -1) {
+        recs[idx] = {
+          ...recs[idx],
           next_due_date: format(nextDue, 'yyyy-MM-dd'),
           last_processed_date: format(currentDue, 'yyyy-MM-dd'),
-        })
-        .eq('id', id);
+          updated_at: new Date().toISOString(),
+        };
+        setLocal('recurring', recs);
+      }
 
       await refreshData();
+      broadcastDataChange();
+      syncWithCloud();
+
       toast.success('Recurring transaction marked as paid');
     },
-    [user, recurringTransactions, addTransaction, refreshData]
+    [user, addTransaction, refreshData, broadcastDataChange, syncWithCloud]
   );
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -1411,8 +1161,18 @@ function setLocal<T>(key: string, data: T) {
     setSavingsGoals([]);
     setRecurringTransactions([]);
 
+    broadcastDataChange();
+    await syncWithCloud({
+      accounts: INITIAL_ACCOUNTS,
+      categories: getLocal<Category[]>('categories', INITIAL_CATEGORIES),
+      transactions: [],
+      budgets: [],
+      savingsGoals: [],
+      recurringTransactions: [],
+    });
+
     toast.success('সব হিসেব রিসেট সম্পন্ন! একদম শূন্য (৳০) থেকে শুরু করতে পারেন।');
-  }, []);
+  }, [broadcastDataChange, syncWithCloud]);
 
   const loadDemoData = useCallback(async () => {
     const ZERO_INITIALIZED_KEY = 'my-money-zero-v3';
@@ -1424,8 +1184,17 @@ function setLocal<T>(key: string, data: T) {
     localStorage.setItem(ZERO_INITIALIZED_KEY, 'demo');
 
     await refreshData();
+    broadcastDataChange();
+    await syncWithCloud({
+      accounts: DEMO_SAMPLE_ACCOUNTS,
+      categories: getLocal<Category[]>('categories', INITIAL_CATEGORIES),
+      transactions: DEMO_SAMPLE_TRANSACTIONS,
+      budgets: DEMO_SAMPLE_BUDGETS,
+      savingsGoals: DEMO_SAMPLE_SAVINGS_GOALS,
+      recurringTransactions: DEMO_SAMPLE_RECURRING,
+    });
     toast.success('নমুনা ডেমো ডেটা লোড করা হয়েছে');
-  }, [refreshData]);
+  }, [refreshData, broadcastDataChange, syncWithCloud]);
 
   const migrateLocalToCloud = useCallback(async () => {
     if (!user) return { success: false, count: 0, message: 'User not authenticated' };
@@ -1688,6 +1457,11 @@ function setLocal<T>(key: string, data: T) {
       loadDemoData,
       isCloudConnected: isSupabaseConfigured(),
       migrateLocalToCloud,
+
+      // Real-time Cloud Sync
+      syncStatus,
+      lastSyncedAt,
+      triggerSync,
     }),
     [
       accounts,
@@ -1725,6 +1499,9 @@ function setLocal<T>(key: string, data: T) {
       resetToZero,
       loadDemoData,
       migrateLocalToCloud,
+      syncStatus,
+      lastSyncedAt,
+      triggerSync,
     ]
   );
 

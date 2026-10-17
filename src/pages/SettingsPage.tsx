@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import clsx from 'clsx';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -59,6 +60,7 @@ export default function SettingsPage() {
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   // Password Form
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isChangingPassword, setIsChangingPassword] = useState(false);
@@ -67,8 +69,8 @@ export default function SettingsPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
-  // Reset to Zero
-  const { resetToZero, isCloudConnected, migrateLocalToCloud } = useData();
+  // Reset to Zero & Real-Time Sync
+  const { resetToZero, isCloudConnected, migrateLocalToCloud, syncStatus, lastSyncedAt, triggerSync } = useData();
   const { language } = useLanguage();
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
@@ -214,23 +216,24 @@ export default function SettingsPage() {
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPassword || newPassword.length < 6) {
-      toast.error('Password must be at least 6 characters');
+    if (!newPassword || newPassword.length < 4) {
+      toast.error('নতুন পাসওয়ার্ড কমপক্ষে ৪ অক্ষরের হতে হবে');
       return;
     }
     if (newPassword !== confirmPassword) {
-      toast.error('Passwords do not match');
+      toast.error('পাসওয়ার্ড দুটি মেলেনি');
       return;
     }
 
     try {
       setIsChangingPassword(true);
-      await updatePassword(newPassword);
-      toast.success('Password updated successfully');
+      await updatePassword(newPassword, currentPassword || '11223344');
+      toast.success('পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে');
+      setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-    } catch {
-      toast.error('Failed to update password');
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to update password');
     } finally {
       setIsChangingPassword(false);
     }
@@ -507,6 +510,16 @@ export default function SettingsPage() {
                       type="button"
                       variant="primary"
                       size="sm"
+                      onClick={() => triggerSync()}
+                      leftIcon={<RefreshCw className={clsx('h-4 w-4', syncStatus === 'saving' && 'animate-spin')} />}
+                    >
+                      {language === 'bn' ? 'এখনই ক্লাউডে সিঙ্ক করুন' : 'Sync to Cloud Now'}
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
                       onClick={handleCopyPairingLink}
                       leftIcon={pairingCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                     >
@@ -526,6 +539,11 @@ export default function SettingsPage() {
                       {language === 'bn' ? 'লোকাল ডাটা ক্লাউডে আপলোড করুন' : 'Upload Local Data to Cloud'}
                     </Button>
                   </div>
+                  {lastSyncedAt && (
+                    <p className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
+                      {language === 'bn' ? `সর্বশেষ ক্লাউড সিঙ্ক: ${lastSyncedAt.toLocaleTimeString()}` : `Last synced: ${lastSyncedAt.toLocaleTimeString()}`}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -622,27 +640,46 @@ export default function SettingsPage() {
 
       {/* Change Password */}
       <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-800/90">
-        <div className="mb-4 flex items-center gap-2">
-          <Lock className="h-5 w-5 text-teal-600 dark:text-teal-400" />
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
-            Security & Password
-          </h2>
+        <div className="mb-2 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Lock className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+              {language === 'bn' ? 'মাস্টার পাসওয়ার্ড পরিবর্তন' : 'Master Password & Security'}
+            </h2>
+          </div>
+          <span className="inline-flex items-center rounded-full bg-teal-50 px-2.5 py-0.5 text-[11px] font-semibold text-teal-700 dark:bg-teal-950/60 dark:text-teal-300">
+            {language === 'bn' ? 'ডিফল্ট: 11223344' : 'Default: 11223344'}
+          </span>
         </div>
+        <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
+          {language === 'bn'
+            ? 'আপনার ওয়েবসাইটের একমাত্র মাস্টার লগইন পাসওয়ার্ড পরিবর্তন করুন। ইমেইল বা ওটিপি ছাড়া শুধুমাত্র এই পাসওয়ার্ড দিয়ে লগইন করা যায়।'
+            : 'Update your single master access password. No email or OTP required.'}
+        </p>
 
         <form onSubmit={handleChangePassword} className="space-y-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <Input
               type="password"
-              label="New Password"
-              placeholder="Minimum 6 characters"
+              label={language === 'bn' ? 'বর্তমান পাসওয়ার্ড' : 'Current Password'}
+              placeholder="11223344"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              helperText={language === 'bn' ? 'প্রথমবার হলে: 11223344' : 'Initial: 11223344'}
+            />
+
+            <Input
+              type="password"
+              label={language === 'bn' ? 'নতুন পাসওয়ার্ড' : 'New Password'}
+              placeholder="Minimum 4 characters"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
             />
 
             <Input
               type="password"
-              label="Confirm New Password"
-              placeholder="Re-enter password"
+              label={language === 'bn' ? 'কনফার্ম পাসওয়ার্ড' : 'Confirm New Password'}
+              placeholder="Re-enter new password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
             />
@@ -651,11 +688,12 @@ export default function SettingsPage() {
           <div className="flex justify-end pt-2">
             <Button
               type="submit"
-              variant="outline"
+              variant="primary"
               loading={isChangingPassword}
               disabled={!newPassword}
+              leftIcon={<Save className="h-4 w-4" />}
             >
-              Update Password
+              {language === 'bn' ? 'পাসওয়ার্ড পরিবর্তন করুন' : 'Update Password'}
             </Button>
           </div>
         </form>

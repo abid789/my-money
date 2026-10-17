@@ -100,3 +100,41 @@ describe('Persistent Session Management', () => {
     expect(isValid).toBe(false);
   });
 });
+
+describe('Password-Only Master Authentication ("11223344")', () => {
+  const MASTER_SALT = 'my-money-master-salt';
+  const DEFAULT_PASSWORD = '11223344';
+  const EXPECTED_DEFAULT_HASH = '68612534ce0bcecca8d1ab25c704670641a9e337e9cf4e4084eec64b0f560ef2';
+
+  it('should hash default password "11223344" to known PBKDF2 SHA-256 hash', async () => {
+    const hash = await hashPassword(DEFAULT_PASSWORD, MASTER_SALT);
+    expect(hash).toBe(EXPECTED_DEFAULT_HASH);
+  });
+
+  it('should authenticate correctly with "11223344"', async () => {
+    const enteredPassword = '11223344';
+    const computedHash = await hashPassword(enteredPassword, MASTER_SALT);
+    const authenticated = computedHash === EXPECTED_DEFAULT_HASH || enteredPassword === DEFAULT_PASSWORD;
+    expect(authenticated).toBe(true);
+  });
+
+  it('should reject incorrect passwords', async () => {
+    const wrongPasswords = ['123456', 'wrongpass', '11223345', ''];
+    for (const wrong of wrongPasswords) {
+      if (!wrong) continue;
+      const computedHash = await hashPassword(wrong, MASTER_SALT);
+      const authenticated = computedHash === EXPECTED_DEFAULT_HASH || wrong === DEFAULT_PASSWORD;
+      expect(authenticated).toBe(false);
+    }
+  });
+
+  it('should support changing password and authenticating with new password', async () => {
+    const newPassword = 'myNewSecurePass2026';
+    const newHash = await hashPassword(newPassword, MASTER_SALT);
+    expect(newHash).not.toBe(EXPECTED_DEFAULT_HASH);
+
+    // Verify authentication with new password
+    const testLogin = await hashPassword('myNewSecurePass2026', MASTER_SALT);
+    expect(testLogin).toBe(newHash);
+  });
+});

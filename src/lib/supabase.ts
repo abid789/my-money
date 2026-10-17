@@ -129,19 +129,22 @@ function getStoredCloudConfig(): { url: string; key: string } {
   return { url: '', key: '' };
 }
 
+const defaultCloudUrl = 'https://usjdkevnxamztgdyzyxn.supabase.co';
+const defaultCloudKey = 'sb_publishable_wqZXq9HO7vszUDNW7MCqDg_PE2Hz-0N';
+
 const envUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const envKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const storedConfig = getStoredCloudConfig();
 
 export const activeSupabaseUrl: string =
-  envUrl && envUrl !== 'your-supabase-project-url'
-    ? envUrl
-    : storedConfig.url;
+  storedConfig.url ||
+  (envUrl && envUrl !== 'your-supabase-project-url' ? envUrl : '') ||
+  defaultCloudUrl;
 
 export const activeSupabaseAnonKey: string =
-  envKey && envKey !== 'your-supabase-anon-key'
-    ? envKey
-    : storedConfig.key;
+  storedConfig.key ||
+  (envKey && envKey !== 'your-supabase-anon-key' ? envKey : '') ||
+  defaultCloudKey;
 
 export const isSupabaseConfigured = (): boolean => {
   return (

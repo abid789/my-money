@@ -1,5 +1,12 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
+import { verifySessionToken } from './_auth';
+
+const SUPABASE_URL =
+  process.env.SUPABASE_URL ||
+  process.env.VITE_SUPABASE_URL ||
+  'https://usjdkevnxamztgdyzyxn.supabase.co';
+const SUPABASE_SECRET = process.env.SUPABASE_SECRET_KEY || '';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS configuration
@@ -12,88 +19,92 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   );
 
   if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
+    return res.status(200).end();
   }
 
-  const supabaseUrl =
-    process.env.VITE_SUPABASE_URL ||
-    process.env.SUPABASE_URL ||
-    (req.headers['x-supabase-url'] as string);
-  const supabaseKey =
-    process.env.VITE_SUPABASE_ANON_KEY ||
-    process.env.SUPABASE_ANON_KEY ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    (req.headers['x-supabase-key'] as string);
-
-  if (!supabaseUrl || !supabaseKey) {
-    return res.status(200).json({
-      configured: false,
-      message:
-        'Supabase cloud credentials are not configured yet. To enable automated cross-device cloud synchronization, set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your Vercel Project Settings.',
+  // Verify Authentication Token
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({
+      error: 'Unauthorized: Authentication token is required to access or sync financial data.',
     });
   }
 
+  const token = authHeader.replace('Bearer ', '').trim();
+  const { valid, userId } = verifySessionToken(token);
+
+  if (!valid) {
+    return res.status(401).json({
+      error: 'Unauthorized: Invalid or expired session. Please log in with your password.',
+    });
+  }
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SECRET);
+
   try {
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // Require and verify Authorization Bearer token to protect private financial data
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({
-        error: 'Unauthorized: Authentication token is required to access financial data.',
-      });
-    }
-
-    const token = authHeader.replace('Bearer ', '').trim();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
-      return res.status(401).json({
-        error: 'Unauthorized: Invalid or expired authentication session. Please sign in.',
-      });
-    }
-
+    // ── GET: Download full cloud state ─────────────────────────────────────────
     if (req.method === 'GET') {
-      const [{ data: accounts }, { data: categories }, { data: transactions }] =
-        await Promise.all([
-          supabase
-            .from('accounts')
-            .select('*')
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: true }),
-          supabase
-            .from('categories')
-            .select('*')
-            .eq('user_id', user.id)
-            .order('sort_order', { ascending: true }),
-          supabase
-            .from('transactions')
-            .select('*, category:categories(*), account:accounts(*), to_account:accounts(*)')
-            .eq('user_id', user.id)
-            .order('date', { ascending: false }),
-        ]);
+      const { data, error } = await supabase.storage
+        .from('financial_backups')
+        .download('master_financial_data.json');
+
+      if (error || !data) {
+        return res.status(200).json({
+          configured: true,
+          data: null,
+          message: 'No remote backup found yet. Local data will initialize cloud storage.',
+        });
+      }
+
+      const text = await data.text();
+      const parsed = JSON.parse(text);
 
       return res.status(200).json({
         configured: true,
-        user_id: user.id,
-        accounts: accounts || [],
-        categories: categories || [],
-        transactions: transactions || [],
+        data: parsed,
+        syncedAt: parsed?.syncedAt || new Date().toISOString(),
       });
     }
 
-    return res.status(200).json({
-      configured: true,
-      status: 'Cloud sync endpoint is active and authenticated.',
-      user_id: user.id,
-    });
+    // ── POST: Save full cloud state ────────────────────────────────────────────
+    if (req.method === 'POST') {
+      const { data } = req.body || {};
+      if (!data || typeof data !== 'object') {
+        return res.status(400).json({ error: 'Valid financial data payload is required' });
+      }
+
+      const payloadToSave = {
+        ...data,
+        syncedAt: new Date().toISOString(),
+        syncedBy: userId || 'master-owner',
+      };
+
+      const payloadString = JSON.stringify(payloadToSave);
+
+      const { data: uploadRes, error: uploadErr } = await supabase.storage
+        .from('financial_backups')
+        .upload('master_financial_data.json', payloadString, {
+          upsert: true,
+          contentType: 'application/json',
+        });
+
+      if (uploadErr) {
+        throw new Error(uploadErr.message || 'Failed to persist data in Supabase cloud');
+      }
+
+      return res.status(200).json({
+        success: true,
+        savedAt: payloadToSave.syncedAt,
+        message: 'All records successfully synchronized and backed up to Supabase Cloud.',
+        storagePath: uploadRes?.path,
+      });
+    }
+
+    return res.status(405).json({ error: 'Method not allowed' });
   } catch (err: any) {
     return res.status(500).json({
-      error: err?.message || 'Database sync failed',
+      success: false,
+      error: err?.message || 'Cloud synchronization failed',
     });
   }
 }

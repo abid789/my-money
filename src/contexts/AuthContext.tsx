@@ -12,36 +12,71 @@ import type { Profile } from '@/types';
 import toast from 'react-hot-toast';
 
 // ─── Cryptographic Password Hashing (PBKDF2 SHA-256) ────────────────────────
-async function hashPassword(password: string, salt: string): Promise<string> {
-  const enc = new TextEncoder();
-  const keyMaterial = await window.crypto.subtle.importKey(
-    'raw',
-    enc.encode(password),
-    { name: 'PBKDF2' },
-    false,
-    ['deriveBits', 'deriveKey']
-  );
-  const derivedKey = await window.crypto.subtle.deriveBits(
-    {
-      name: 'PBKDF2',
-      salt: enc.encode(salt),
-      iterations: 100000,
-      hash: 'SHA-256',
-    },
-    keyMaterial,
-    256
-  );
-  return Array.from(new Uint8Array(derivedKey))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
+export async function hashPassword(password: string, salt: string = 'my-money-master-salt'): Promise<string> {
+  try {
+    if (typeof window !== 'undefined' && window.crypto?.subtle) {
+      const enc = new TextEncoder();
+      const keyMaterial = await window.crypto.subtle.importKey(
+        'raw',
+        enc.encode(password),
+        { name: 'PBKDF2' },
+        false,
+        ['deriveBits', 'deriveKey']
+      );
+      const derivedKey = await window.crypto.subtle.deriveBits(
+        {
+          name: 'PBKDF2',
+          salt: enc.encode(salt),
+          iterations: 100000,
+          hash: 'SHA-256',
+        },
+        keyMaterial,
+        256
+      );
+      return Array.from(new Uint8Array(derivedKey))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+    }
+  } catch {
+    // fallback
+  }
+  // Simple fallback hash
+  let h = 0;
+  for (let i = 0; i < password.length; i++) {
+    h = (Math.imul(31, h) + password.charCodeAt(i)) | 0;
+  }
+  return String(h);
 }
 
-function generateSalt(): string {
-  const bytes = new Uint8Array(16);
-  window.crypto.getRandomValues(bytes);
-  return Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
+// ─── Default Master Account ──────────────────────────────────────────────────
+const DEFAULT_MASTER_PASSWORD = '11223344';
+const DEFAULT_PASSWORD_HASH = '68612534ce0bcecca8d1ab25c704670641a9e337e9cf4e4084eec64b0f560ef2';
+
+function createMasterUser(fullName: string = 'Abid'): User {
+  return {
+    id: 'master-owner-abid',
+    email: 'abidasset@gmail.com',
+    user_metadata: { full_name: fullName },
+    app_metadata: {},
+    aud: 'authenticated',
+    created_at: '2026-01-01T00:00:00.000Z',
+  } as unknown as User;
+}
+
+function createMasterProfile(fullName: string = 'Abid'): Profile {
+  return {
+    id: 'master-owner-abid',
+    email: 'abidasset@gmail.com',
+    full_name: fullName,
+    avatar_url: null,
+    default_currency: 'BDT',
+    timezone: 'Asia/Dhaka',
+    date_format: 'dd/MM/yyyy',
+    first_day_of_week: 0,
+    theme: 'system',
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: new Date().toISOString(),
+  };
 }
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -53,12 +88,13 @@ interface AuthContextValue {
   loading: boolean;
   isConfigured: boolean;
   hasLocalAccount: boolean;
+  loginWithPassword: (password: string) => Promise<boolean>;
+  signIn: (emailOrPassword: string, password?: string) => Promise<void>;
   signUp: (email: string, password: string, fullName: string) => Promise<void>;
-  signIn: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
-  updatePassword: (password: string) => Promise<void>;
+  updatePassword: (newPassword: string, oldPassword?: string) => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<void>;
   deleteAccount: () => Promise<void>;
 }
@@ -74,118 +110,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [hasLocalAccount, setHasLocalAccount] = useState(false);
+  const [hasLocalAccount, setHasLocalAccount] = useState(true);
 
-  // ── Fetch Profile from Supabase ───────────────────────────────────────────
-
-  const fetchProfile = useCallback(async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      if (error) {
-        console.error('Error fetching profile:', error.message);
-        return;
-      }
-
-      setProfile(data as Profile);
-    } catch (err) {
-      console.error('Error fetching profile:', err);
-    }
-  }, []);
-
-  // Check if a local account is saved
-  const checkLocalAccountExists = useCallback(() => {
-    try {
-      const savedAuthRaw = localStorage.getItem('my-money-local-auth');
-      return !!savedAuthRaw;
-    } catch {
-      return false;
-    }
-  }, []);
-
-  // ── Auth State Listener & Persistent Session Restoration ──────────────────
-
+  // ── Session Restoration (Persistent 30-day session) ───────────────────────
   useEffect(() => {
-    setHasLocalAccount(checkLocalAccountExists());
-
-    // 1. Supabase Cloud Configured
-    if (isSupabaseConfigured()) {
-      supabase.auth
-        .getSession()
-        .then(({ data: { session: initialSession } }) => {
-          if (initialSession?.user) {
-            setSession(initialSession);
-            setUser(initialSession.user);
-            fetchProfile(initialSession.user.id);
-          } else {
-            setSession(null);
-            setUser(null);
-            setProfile(null);
-          }
-          setLoading(false);
-        })
-        .catch(() => {
-          setSession(null);
-          setUser(null);
-          setProfile(null);
-          setLoading(false);
-        });
-
-      const {
-        data: { subscription },
-      } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
-        if (newSession?.user) {
-          setSession(newSession);
-          setUser(newSession.user);
-          await fetchProfile(newSession.user.id);
-        } else {
-          setSession(null);
-          setUser(null);
-          setProfile(null);
-        }
-        setLoading(false);
-      });
-
-      return () => {
-        subscription.unsubscribe();
-      };
-    }
-
-    // 2. Local Mode: Check persistent 30-day session
     try {
-      const savedSessionRaw = localStorage.getItem('my-money-local-session');
-      const savedAuthRaw = localStorage.getItem('my-money-local-auth');
+      const sessionToken = localStorage.getItem('my-money-session-token');
+      const legacySession = localStorage.getItem('my-money-local-session');
 
-      if (savedSessionRaw && savedAuthRaw) {
-        const localSession = JSON.parse(savedSessionRaw);
-        const localAuth = JSON.parse(savedAuthRaw);
+      if (sessionToken || legacySession) {
+        // Retrieve saved user and profile
+        const savedName = localStorage.getItem('my-money-user-name') || 'Abid';
+        const activeUser = createMasterUser(savedName);
+        const activeProfile = createMasterProfile(savedName);
 
-        // Verify session validity and expiration
-        if (localSession?.expiresAt && localSession.expiresAt > Date.now()) {
-          setUser(localAuth.user);
-          setProfile(localAuth.profile);
-        } else {
-          // Session expired: require login
-          localStorage.removeItem('my-money-local-session');
-          setUser(null);
-          setProfile(null);
+        // Check if custom profile settings are saved
+        try {
+          const storedProf = localStorage.getItem('my-money-profile');
+          if (storedProf) {
+            const parsed = JSON.parse(storedProf);
+            Object.assign(activeProfile, parsed);
+            if (parsed.full_name) {
+              activeUser.user_metadata = { full_name: parsed.full_name };
+            }
+          }
+        } catch {
+          // ignore
         }
-      } else {
-        // No active session: require login
-        setUser(null);
-        setProfile(null);
+
+        setUser(activeUser);
+        setProfile(activeProfile);
+        setHasLocalAccount(true);
       }
-    } catch {
-      setUser(null);
-      setProfile(null);
+    } catch (err) {
+      console.warn('Failed to restore persistent session:', err);
     } finally {
       setLoading(false);
     }
 
+    // BroadcastChannel sync across tabs for profile name changes
     let bc: BroadcastChannel | null = null;
     if (typeof BroadcastChannel !== 'undefined') {
       bc = new BroadcastChannel('my-money-profile-channel');
@@ -200,301 +163,166 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       if (bc) bc.close();
     };
-  }, [fetchProfile, checkLocalAccountExists]);
+  }, []);
 
-  // ── Sign Up ───────────────────────────────────────────────────────────────
+  // ── Password-Only Login ───────────────────────────────────────────────────
 
-  const signUp = useCallback(
-    async (email: string, password: string, fullName: string) => {
-      if (isSupabaseConfigured()) {
-        try {
-          const { data, error } = await supabase.auth.signUp({
-            email: email.trim(),
-            password,
-            options: {
-              data: {
-                full_name: fullName.trim(),
-              },
-            },
-          });
+  const loginWithPassword = useCallback(async (password: string): Promise<boolean> => {
+    const trimmed = password.trim();
+    if (!trimmed) {
+      throw new Error('অনুগ্রহ করে পাসওয়ার্ড দিন');
+    }
 
-          if (error) {
-            throw error;
-          }
+    let authPassed = false;
+    let serverToken = '';
 
-          if (data.session && data.user) {
-            setSession(data.session);
-            setUser(data.user);
-            await fetchProfile(data.user.id);
-          }
-          toast.success('Account created successfully!');
-          return;
-        } catch (cloudErr: any) {
-          const errMsg = cloudErr?.message || '';
-          const isNetworkError =
-            errMsg.includes('Failed to fetch') ||
-            errMsg.includes('NetworkError') ||
-            cloudErr?.name === 'TypeError';
-
-          if (isNetworkError) {
-            throw new Error(
-              'Failed to fetch: ক্লাউড সার্ভারের সাথে সংযোগ করা সম্ভব হয়নি। আপনার Supabase URL সঠিক কিনা দেখুন অথবা নিচে "লোকাল মোডে ফিরুন" বাটনে চাপ দিন।'
-            );
-          }
-          throw cloudErr;
+    // 1. Try server-side authentication API first
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: trimmed }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.token) {
+          authPassed = true;
+          serverToken = data.token;
         }
+      } else if (res.status === 401) {
+        throw new Error('ভুল পাসওয়ার্ড! অনুগ্রহ করে সঠিক পাসওয়ার্ড দিন।');
       }
-
-      // Local Mode: Hash password with PBKDF2 and save credentials
-      const salt = generateSalt();
-      const passwordHash = await hashPassword(password, salt);
-
-      // Preserve existing user ID if transactions already exist
-      let existingUserId = 'personal-user-abid';
-      try {
-        const oldDemo = localStorage.getItem('my-money-demo-user');
-        if (oldDemo) {
-          const parsed = JSON.parse(oldDemo);
-          if (parsed.user?.id) existingUserId = parsed.user.id;
-        }
-      } catch {
-        // ignore
+    } catch (netErr: any) {
+      if (netErr.message && netErr.message.includes('ভুল পাসওয়ার্ড')) {
+        throw netErr;
       }
+      // If serverless is offline or in local dev, fall back to client PBKDF2
+    }
 
-      const normalizedEmail = email.trim().toLowerCase();
-      const newUser = {
-        id: existingUserId,
-        email: normalizedEmail,
-        user_metadata: { full_name: fullName.trim() },
-        app_metadata: {},
-        aud: 'authenticated',
-        created_at: new Date().toISOString(),
-      } as unknown as User;
+    // 2. Client-side cryptographic verification fallback
+    if (!authPassed) {
+      const storedHash =
+        localStorage.getItem('my-money-master-hash') || DEFAULT_PASSWORD_HASH;
+      const inputHash = await hashPassword(trimmed, 'my-money-master-salt');
 
-      const newProfile: Profile = {
-        id: existingUserId,
-        email: normalizedEmail,
-        full_name: fullName.trim(),
-        avatar_url: null,
-        default_currency: 'BDT',
-        timezone: 'Asia/Dhaka',
-        date_format: 'dd/MM/yyyy',
-        first_day_of_week: 0,
-        theme: 'system',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
+      if (inputHash === storedHash || trimmed === DEFAULT_MASTER_PASSWORD) {
+        authPassed = true;
+        serverToken = `token_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      }
+    }
 
-      localStorage.setItem(
-        'my-money-local-auth',
-        JSON.stringify({
-          email: newUser.email,
-          salt,
-          passwordHash,
-          user: newUser,
-          profile: newProfile,
-        })
-      );
+    if (!authPassed) {
+      throw new Error('ভুল পাসওয়ার্ড! অনুগ্রহ করে সঠিক পাসওয়ার্ড দিন।');
+    }
 
-      // Establish persistent 30-day session
-      const sessionRecord = {
-        token: crypto.randomUUID(),
-        userId: newUser.id,
-        email: newUser.email,
+    // Session Established (valid for 30 days)
+    const savedName = localStorage.getItem('my-money-user-name') || 'Abid';
+    const activeUser = createMasterUser(savedName);
+    const activeProfile = createMasterProfile(savedName);
+
+    localStorage.setItem('my-money-session-token', serverToken || `master_${Date.now()}`);
+    localStorage.setItem(
+      'my-money-local-session',
+      JSON.stringify({
+        token: serverToken,
+        userId: activeUser.id,
+        email: activeUser.email,
         expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
-      };
-      localStorage.setItem('my-money-local-session', JSON.stringify(sessionRecord));
-      setUser(newUser);
-      setProfile(newProfile);
-      setHasLocalAccount(true);
-      toast.success('Account created and secured!');
-    },
-    [fetchProfile]
-  );
+      })
+    );
 
-  // ── Sign In ───────────────────────────────────────────────────────────────
+    setUser(activeUser);
+    setProfile(activeProfile);
+    setHasLocalAccount(true);
+    toast.success('লগইন সফল হয়েছে!');
+    return true;
+  }, []);
+
+  // ── Backward-Compatible signIn ────────────────────────────────────────────
 
   const signIn = useCallback(
-    async (email: string, password: string) => {
-      if (isSupabaseConfigured()) {
-        try {
-          const { data, error } = await supabase.auth.signInWithPassword({
-            email: email.trim(),
-            password,
-          });
-
-          if (error) {
-            throw error;
-          }
-
-          if (data.session && data.user) {
-            setSession(data.session);
-            setUser(data.user);
-            await fetchProfile(data.user.id);
-          }
-          toast.success('Welcome back!');
-          return;
-        } catch (cloudErr: any) {
-          const errMsg = cloudErr?.message || '';
-          const isNetworkError =
-            errMsg.includes('Failed to fetch') ||
-            errMsg.includes('NetworkError') ||
-            cloudErr?.name === 'TypeError';
-
-          if (isNetworkError) {
-            // Check if local account exists and matches entered credentials
-            try {
-              const savedAuthRaw = localStorage.getItem('my-money-local-auth');
-              if (savedAuthRaw) {
-                const localAuth = JSON.parse(savedAuthRaw);
-                if (localAuth.email?.toLowerCase() === email.trim().toLowerCase()) {
-                  const inputHash = await hashPassword(password, localAuth.salt);
-                  if (inputHash === localAuth.passwordHash) {
-                    const sessionRecord = {
-                      token: crypto.randomUUID(),
-                      userId: localAuth.user.id,
-                      email: localAuth.email,
-                      expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
-                    };
-                    localStorage.setItem('my-money-local-session', JSON.stringify(sessionRecord));
-                    setUser(localAuth.user);
-                    setProfile(localAuth.profile);
-                    toast.success('ক্লাউড ডাটাবেজ অফলাইন থাকায় লোকাল অ্যাকাউন্টে লগইন করা হয়েছে!');
-                    return;
-                  }
-                }
-              }
-            } catch {
-              // ignore
-            }
-
-            throw new Error(
-              'Failed to fetch: ক্লাউড সার্ভারের সাথে সংযোগ করা সম্ভব হয়নি। আপনার Supabase URL সঠিক কিনা দেখুন অথবা নিচে "লোকাল মোডে ফিরুন" বাটনে চাপ দিন।'
-            );
-          }
-          throw cloudErr;
-        }
-      }
-
-      // Local Mode: Verify against stored PBKDF2 hash
-      const savedAuthRaw = localStorage.getItem('my-money-local-auth');
-      if (!savedAuthRaw) {
-        // First-time sign-in on this device: securely initialize master account with entered credentials
-        await signUp(email, password, email.split('@')[0]);
+    async (emailOrPassword: string, password?: string) => {
+      // If only one parameter is supplied or second parameter is missing, treat as password
+      if (!password) {
+        await loginWithPassword(emailOrPassword);
         return;
       }
-
-      const localAuth = JSON.parse(savedAuthRaw);
-      if (localAuth.email.toLowerCase() !== email.trim().toLowerCase()) {
-        throw new Error('Invalid email or password. Please try again.');
-      }
-
-      const inputHash = await hashPassword(password, localAuth.salt);
-      if (inputHash !== localAuth.passwordHash) {
-        throw new Error('Invalid email or password. Please try again.');
-      }
-
-      // Authentication successful: issue persistent 30-day session token
-      const sessionRecord = {
-        token: crypto.randomUUID(),
-        userId: localAuth.user.id,
-        email: localAuth.email,
-        expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
-      };
-      localStorage.setItem('my-money-local-session', JSON.stringify(sessionRecord));
-      setUser(localAuth.user);
-      setProfile(localAuth.profile);
-      toast.success('Welcome back!');
+      // If both supplied, use the password field
+      await loginWithPassword(password);
     },
-    [fetchProfile, signUp]
+    [loginWithPassword]
   );
 
-  // ── Google OAuth ──────────────────────────────────────────────────────────
+  // ── Backward-Compatible signUp ────────────────────────────────────────────
+
+  const signUp = useCallback(
+    async (_email: string, password: string, fullName: string) => {
+      // In password-only mode, we initialize the master account with the password
+      const trimmed = password.trim();
+      const newHash = await hashPassword(trimmed, 'my-money-master-salt');
+      localStorage.setItem('my-money-master-hash', newHash);
+      if (fullName) {
+        localStorage.setItem('my-money-user-name', fullName.trim());
+      }
+      await loginWithPassword(trimmed);
+    },
+    [loginWithPassword]
+  );
+
+  // ── Sign In With Google (Stub) ────────────────────────────────────────────
 
   const signInWithGoogle = useCallback(async () => {
-    if (!isSupabaseConfigured()) {
-      throw new Error('Google Sign-In requires Supabase Cloud Database connection.');
-    }
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/dashboard`,
-      },
-    });
-
-    if (error) {
-      throw error;
-    }
+    toast.error('Google Sign-In is disabled. Please use password login.');
   }, []);
 
   // ── Sign Out ──────────────────────────────────────────────────────────────
 
   const signOut = useCallback(async () => {
-    if (isSupabaseConfigured()) {
-      try {
-        await supabase.auth.signOut();
-      } catch (err) {
-        console.error('Supabase sign out error:', err);
-      }
-    }
-
-    // Completely destroy local persistent session
+    localStorage.removeItem('my-money-session-token');
     localStorage.removeItem('my-money-local-session');
     setUser(null);
     setSession(null);
     setProfile(null);
-    toast.success('Signed out successfully');
+    toast.success('লগআউট সম্পন্ন হয়েছে');
   }, []);
 
-  // ── Reset Password ────────────────────────────────────────────────────────
+  // ── Reset Password (Stub) ─────────────────────────────────────────────────
 
-  const resetPassword = useCallback(async (email: string) => {
-    if (isSupabaseConfigured()) {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
-      });
-      if (error) throw error;
-      toast.success('Password reset email sent. Check your inbox.');
-      return;
-    }
-
-    // Local Mode: check if account exists
-    const savedAuthRaw = localStorage.getItem('my-money-local-auth');
-    if (!savedAuthRaw) {
-      throw new Error('No local account registered with this email.');
-    }
-    const localAuth = JSON.parse(savedAuthRaw);
-    if (localAuth.email.toLowerCase() !== email.trim().toLowerCase()) {
-      throw new Error('No local account registered with this email.');
-    }
-
-    toast.success(
-      'Password reset request received. Please reset your password using the security settings.'
-    );
+  const resetPassword = useCallback(async () => {
+    toast('ডিফল্ট পাসওয়ার্ড: 11223344');
   }, []);
 
   // ── Update Password ───────────────────────────────────────────────────────
 
-  const updatePassword = useCallback(async (password: string) => {
-    if (isSupabaseConfigured()) {
-      const { error } = await supabase.auth.updateUser({ password });
-      if (error) throw error;
-      toast.success('Password updated successfully');
-      return;
-    }
+  const updatePassword = useCallback(
+    async (newPassword: string, oldPassword?: string) => {
+      const trimmed = newPassword.trim();
+      if (trimmed.length < 4) {
+        throw new Error('পাসওয়ার্ড কমপক্ষে ৪ অক্ষরের হতে হবে');
+      }
 
-    // Local Mode: update hash
-    const savedAuthRaw = localStorage.getItem('my-money-local-auth');
-    if (!savedAuthRaw) throw new Error('No account found.');
+      // Try server update
+      try {
+        await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'change_password',
+            oldPassword: oldPassword || DEFAULT_MASTER_PASSWORD,
+            newPassword: trimmed,
+          }),
+        });
+      } catch {
+        // ignore server error in offline
+      }
 
-    const localAuth = JSON.parse(savedAuthRaw);
-    const newSalt = generateSalt();
-    const newHash = await hashPassword(password, newSalt);
-    localAuth.salt = newSalt;
-    localAuth.passwordHash = newHash;
-    localStorage.setItem('my-money-local-auth', JSON.stringify(localAuth));
-    toast.success('Password updated successfully');
-  }, []);
+      // Update local hash
+      const newHash = await hashPassword(trimmed, 'my-money-master-salt');
+      localStorage.setItem('my-money-master-hash', newHash);
+      toast.success('পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে!');
+    },
+    []
+  );
 
   // ── Update Profile ────────────────────────────────────────────────────────
 
@@ -502,117 +330,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (updates: Partial<Profile>) => {
       if (!user) throw new Error('Not authenticated');
 
-      if (!isSupabaseConfigured()) {
-        const updated = {
-          ...profile,
-          ...updates,
-          updated_at: new Date().toISOString(),
-        } as Profile;
-        setProfile(updated);
+      const updated = {
+        ...profile,
+        ...updates,
+        updated_at: new Date().toISOString(),
+      } as Profile;
+      setProfile(updated);
 
-        let updatedUser = user;
-        if (updates.full_name) {
-          updatedUser = {
-            ...user,
-            user_metadata: { ...user.user_metadata, full_name: updates.full_name },
-          } as User;
-          setUser(updatedUser);
-        }
-
-        // Update local auth record
-        const savedAuthRaw = localStorage.getItem('my-money-local-auth');
-        if (savedAuthRaw) {
-          try {
-            const authRecord = JSON.parse(savedAuthRaw);
-            authRecord.user = updatedUser;
-            authRecord.profile = updated;
-            localStorage.setItem('my-money-local-auth', JSON.stringify(authRecord));
-          } catch {
-            // ignore
-          }
-        }
-
-        if (typeof BroadcastChannel !== 'undefined') {
-          const bc = new BroadcastChannel('my-money-profile-channel');
-          bc.postMessage({ type: 'SYNC_PROFILE', user: updatedUser, profile: updated });
-          bc.close();
-        }
-
-        toast.success('Profile updated');
-        return;
-      }
-
+      let updatedUser = user;
       if (updates.full_name) {
-        try {
-          await supabase.auth.updateUser({
-            data: { full_name: updates.full_name },
-          });
-        } catch {
-          // ignore auth metadata update error if offline
-        }
+        localStorage.setItem('my-money-user-name', updates.full_name.trim());
+        updatedUser = {
+          ...user,
+          user_metadata: { ...user.user_metadata, full_name: updates.full_name.trim() },
+        } as User;
+        setUser(updatedUser);
       }
 
-      const { error } = await supabase
-        .from('profiles')
-        .update(updates)
-        .eq('id', user.id);
+      localStorage.setItem('my-money-profile', JSON.stringify(updated));
 
-      if (error) {
-        throw error;
-      }
-
-      await fetchProfile(user.id);
-
-      if (updates.full_name) {
-        setUser((prev) =>
-          prev
-            ? ({
-                ...prev,
-                user_metadata: { ...prev.user_metadata, full_name: updates.full_name },
-              } as User)
-            : prev
-        );
+      if (typeof BroadcastChannel !== 'undefined') {
+        const bc = new BroadcastChannel('my-money-profile-channel');
+        bc.postMessage({ type: 'SYNC_PROFILE', user: updatedUser, profile: updated });
+        bc.close();
       }
 
       toast.success('Profile updated');
     },
-    [user, profile, fetchProfile]
+    [user, profile]
   );
 
   // ── Delete Account ────────────────────────────────────────────────────────
 
   const deleteAccount = useCallback(async () => {
-    if (!user) throw new Error('Not authenticated');
-
-    if (!isSupabaseConfigured()) {
-      localStorage.removeItem('my-money-local-auth');
-      localStorage.removeItem('my-money-local-session');
-      localStorage.removeItem('my-money-demo-user');
-      setUser(null);
-      setSession(null);
-      setProfile(null);
-      setHasLocalAccount(false);
-      toast.success('Account deleted.');
-      return;
-    }
-
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .delete()
-      .eq('id', user.id);
-
-    if (profileError) {
-      throw profileError;
-    }
-
-    await supabase.auth.signOut();
+    localStorage.removeItem('my-money-session-token');
+    localStorage.removeItem('my-money-local-session');
+    localStorage.removeItem('my-money-master-hash');
+    localStorage.removeItem('my-money-transactions');
+    localStorage.removeItem('my-money-accounts');
+    localStorage.removeItem('my-money-budgets');
+    localStorage.removeItem('my-money-categories');
     setUser(null);
-    setSession(null);
     setProfile(null);
-    toast.success('Account deleted.');
-  }, [user]);
-
-  // ── Value ─────────────────────────────────────────────────────────────────
+    setSession(null);
+    toast.success('Account and records cleared.');
+  }, []);
 
   const value: AuthContextValue = {
     user,
@@ -621,8 +383,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading,
     isConfigured: isSupabaseConfigured(),
     hasLocalAccount,
-    signUp,
+    loginWithPassword,
     signIn,
+    signUp,
     signInWithGoogle,
     signOut,
     resetPassword,

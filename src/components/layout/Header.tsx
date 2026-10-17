@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useData } from '@/contexts/DataContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useNotifications } from '@/contexts/NotificationContext';
@@ -23,6 +24,10 @@ import {
   ExternalLink,
   X,
   Languages,
+  Cloud,
+  CloudOff,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react';
 
 const routeTitles: Record<string, { en: string; bn: string }> = {
@@ -49,6 +54,7 @@ export function Header({ onToggleMobileSidebar }: HeaderProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, profile, signOut, isConfigured } = useAuth();
+  const { syncStatus, lastSyncedAt, triggerSync } = useData();
   const { theme, toggleTheme } = useTheme();
   const { language, toggleLanguage, t } = useLanguage();
   const { unreadCount } = useNotifications();
@@ -105,7 +111,59 @@ export function Header({ onToggleMobileSidebar }: HeaderProps) {
         </div>
 
         {/* Right side */}
-        <div className="flex items-center gap-1 sm:gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Real-Time Cloud Sync Pill */}
+          <button
+            type="button"
+            onClick={() => triggerSync()}
+            title={
+              syncStatus === 'saved'
+                ? lastSyncedAt
+                  ? `ক্লাউডে সংরক্ষিত (${lastSyncedAt.toLocaleTimeString()}) - সিঙ্ক করতে ক্লিক করুন`
+                  : 'ক্লাউডে সংরক্ষিত'
+                : syncStatus === 'saving'
+                ? 'ক্লাউডে সেভ হচ্ছে...'
+                : syncStatus === 'offline'
+                ? 'অফলাইন মোড: ইন্টারনেট পেলে স্বয়ংক্রিয় সিঙ্ক হবে'
+                : 'সিঙ্ক ত্রুটি! পুনরায় চেষ্টা করতে ক্লিক করুন'
+            }
+            className={clsx(
+              'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold shadow-sm transition-all',
+              syncStatus === 'saved' &&
+                'border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-900/60 dark:bg-emerald-950/60 dark:text-emerald-300',
+              syncStatus === 'saving' &&
+                'border border-amber-200 bg-amber-50 text-amber-800 animate-pulse dark:border-amber-900/60 dark:bg-amber-950/60 dark:text-amber-300',
+              syncStatus === 'offline' &&
+                'border border-gray-200 bg-gray-100 text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300',
+              syncStatus === 'error' &&
+                'border border-red-200 bg-red-50 text-red-800 hover:bg-red-100 dark:border-red-900/60 dark:bg-red-950/60 dark:text-red-300'
+            )}
+          >
+            {syncStatus === 'saved' && (
+              <>
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="hidden sm:inline">{language === 'bn' ? 'সংরক্ষিত' : 'Saved'}</span>
+              </>
+            )}
+            {syncStatus === 'saving' && (
+              <>
+                <Loader2 className="h-3 w-3 animate-spin text-amber-600 dark:text-amber-400" />
+                <span className="hidden sm:inline">{language === 'bn' ? 'সংরক্ষণ হচ্ছে...' : 'Saving...'}</span>
+              </>
+            )}
+            {syncStatus === 'offline' && (
+              <>
+                <CloudOff className="h-3 w-3 text-gray-500" />
+                <span className="hidden sm:inline">{language === 'bn' ? 'অফলাইন' : 'Offline'}</span>
+              </>
+            )}
+            {syncStatus === 'error' && (
+              <>
+                <AlertCircle className="h-3 w-3 text-red-600 dark:text-red-400" />
+                <span className="hidden sm:inline">{language === 'bn' ? 'সিঙ্ক ব্যর্থ' : 'Sync Failed'}</span>
+              </>
+            )}
+          </button>
           {/* Language Switcher Button */}
           <button
             type="button"
