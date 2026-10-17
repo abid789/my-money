@@ -39,7 +39,7 @@ const navItems = [
 ];
 
 export function Sidebar() {
-  const { user, signOut } = useAuth();
+  const { user, profile, signOut } = useAuth();
   const { t, language } = useLanguage();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
@@ -59,7 +59,7 @@ export function Sidebar() {
   };
 
   const displayName =
-    user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
+    profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || (language === 'bn' ? 'আবিদ' : 'Abid');
   const avatarInitial = displayName.charAt(0).toUpperCase();
 
   return (

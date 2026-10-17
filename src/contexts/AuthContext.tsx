@@ -154,8 +154,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     });
 
+    let bc: BroadcastChannel | null = null;
+    if (typeof BroadcastChannel !== 'undefined') {
+      bc = new BroadcastChannel('my-money-profile-channel');
+      bc.onmessage = (event) => {
+        if (event.data?.type === 'SYNC_PROFILE') {
+          if (event.data.user) setUser(event.data.user);
+          if (event.data.profile) setProfile(event.data.profile);
+        }
+      };
+    }
+
     return () => {
       subscription.unsubscribe();
+      if (bc) bc.close();
     };
   }, [fetchProfile]);
 
@@ -259,20 +271,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!isSupabaseConfigured()) {
         const updated = { ...profile, ...updates, updated_at: new Date().toISOString() } as Profile;
         setProfile(updated);
-        const savedDemo = localStorage.getItem('my-money-demo-user');
-        if (savedDemo) {
-          try {
-            const parsed = JSON.parse(savedDemo);
-            localStorage.setItem(
-              'my-money-demo-user',
-              JSON.stringify({ ...parsed, profile: updated })
-            );
-          } catch {
-            // ignore
-          }
+
+        let updatedUser = user;
+        if (updates.full_name) {
+          updatedUser = {
+            ...user,
+            user_metadata: { ...user.user_metadata, full_name: updates.full_name },
+          } as User;
+          setUser(updatedUser);
         }
+
+        try {
+          localStorage.setItem(
+            'my-money-demo-user',
+            JSON.stringify({ user: updatedUser, profile: updated })
+          );
+          if (typeof BroadcastChannel !== 'undefined') {
+            const bc = new BroadcastChannel('my-money-profile-channel');
+            bc.postMessage({ type: 'SYNC_PROFILE', user: updatedUser, profile: updated });
+            bc.close();
+          }
+        } catch {
+          // ignore
+        }
+
         toast.success('Profile updated');
         return;
+      }
+
+      if (updates.full_name) {
+        try {
+          await supabase.auth.updateUser({
+            data: { full_name: updates.full_name },
+          });
+        } catch {
+          // ignore auth metadata update error if network fails
+        }
       }
 
       const { error } = await supabase
@@ -286,6 +320,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Refresh profile data
       await fetchProfile(user.id);
+
+      if (updates.full_name) {
+        setUser((prev) =>
+          prev
+            ? ({
+                ...prev,
+                user_metadata: { ...prev.user_metadata, full_name: updates.full_name },
+              } as User)
+            : prev
+        );
+      }
+
       toast.success('Profile updated');
     },
     [user, profile, fetchProfile]

@@ -207,3 +207,32 @@ export interface CategorySpending {
   color: string;
   icon: string;
 }
+
+// ─── Notification History ───────────────────────────────────────────────────
+
+export type NotificationType =
+  | 'income_added'
+  | 'income_updated'
+  | 'income_deleted'
+  | 'expense_added'
+  | 'expense_updated'
+  | 'expense_deleted'
+  | 'transfer_added'
+  | 'balance_updated'
+  | 'profile_updated'
+  | 'budget_updated'
+  | 'category_updated';
+
+export interface AppNotification {
+  id: string;
+  type: NotificationType;
+  title: string;
+  description: string;
+  amount?: number;
+  category?: string;
+  account?: string;
+  timestamp: string;
+  formattedTime: string;
+  read: boolean;
+}
+

@@ -16,13 +16,13 @@ import { PlusCircle, Sparkles, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function DashboardPage() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { loading, error, refreshData, transactions } = useData();
   const { t, language } = useLanguage();
   const navigate = useNavigate();
 
   const displayName =
-    user?.user_metadata?.full_name || user?.email?.split('@')[0] || (language === 'bn' ? 'আবিদ' : 'Abid');
+    profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || (language === 'bn' ? 'আবিদ' : 'Abid');
   const greeting = getGreeting();
   const todayStr = formatDate(format(new Date(), 'yyyy-MM-dd'), 'EEEE, MMMM dd, yyyy');
 

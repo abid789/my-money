@@ -22,13 +22,30 @@ import {
   Clock,
   CheckCircle2,
   ExternalLink,
+  Cloud,
+  Database,
+  Smartphone,
+  Laptop,
+  Share2,
+  Copy,
+  AlertTriangle,
+  RefreshCw,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { WeeklyEmailModal } from '@/components/reports/WeeklyEmailModal';
+import { useNotifications } from '@/contexts/NotificationContext';
+import {
+  activeSupabaseUrl,
+  isSupabaseConfigured,
+  saveSupabaseCloudConfig,
+  clearSupabaseCloudConfig,
+  getDevicePairingUrl,
+} from '@/lib/supabase';
 
 export default function SettingsPage() {
   const { user, profile, updateProfile, updatePassword, deleteAccount } = useAuth();
   const { theme, setTheme } = useTheme();
+  const { addNotification } = useNotifications();
 
   // Profile Form
   const [fullName, setFullName] = useState(
@@ -51,10 +68,82 @@ export default function SettingsPage() {
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   // Reset to Zero
-  const { resetToZero } = useData();
+  const { resetToZero, isCloudConnected, migrateLocalToCloud } = useData();
   const { language } = useLanguage();
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+
+  // Cloud Database & Device Sync
+  const [cloudUrlInput, setCloudUrlInput] = useState('');
+  const [cloudKeyInput, setCloudKeyInput] = useState('');
+  const [isSavingCloud, setIsSavingCloud] = useState(false);
+  const [isMigrating, setIsMigrating] = useState(false);
+  const [pairingCopied, setPairingCopied] = useState(false);
+  const [disconnectDialogOpen, setDisconnectDialogOpen] = useState(false);
+
+  const handleSaveCloudConfig = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cloudUrlInput.trim() || !cloudKeyInput.trim()) {
+      toast.error(
+        language === 'bn'
+          ? 'Supabase URL এবং Anon Key উভয়ই প্রয়োজন'
+          : 'Both Supabase URL and Anon Key are required'
+      );
+      return;
+    }
+    try {
+      setIsSavingCloud(true);
+      saveSupabaseCloudConfig(cloudUrlInput.trim(), cloudKeyInput.trim());
+      toast.success(
+        language === 'bn'
+          ? 'ক্লাউড ডাটাবেস সফলভাবে সংযুক্ত হয়েছে!'
+          : 'Cloud database connected successfully!'
+      );
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to save configuration');
+      setIsSavingCloud(false);
+    }
+  };
+
+  const handleCopyPairingLink = async () => {
+    const url = getDevicePairingUrl();
+    if (!url) {
+      toast.error(
+        language === 'bn'
+          ? 'ক্লাউড ডাটাবেস এখনও কনফিগার করা হয়নি'
+          : 'Cloud database is not configured yet'
+      );
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setPairingCopied(true);
+      toast.success(
+        language === 'bn'
+          ? 'ডিভাইস পেয়ারিং লিংক কপি হয়েছে! আপনার ফোন বা কম্পিউটারে এটি পেস্ট করুন।'
+          : 'Device pairing link copied! Open it on phone or computer to sync instantly.'
+      );
+      setTimeout(() => setPairingCopied(false), 3000);
+    } catch {
+      toast.error('Failed to copy to clipboard');
+    }
+  };
+
+  const handleMigrate = async () => {
+    try {
+      setIsMigrating(true);
+      const res = await migrateLocalToCloud();
+      if (res.success) {
+        toast.success(res.message);
+      } else {
+        toast.error(res.message);
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Migration failed');
+    } finally {
+      setIsMigrating(false);
+    }
+  };
 
   // Weekly Digest
   const [weeklyModalOpen, setWeeklyModalOpen] = useState(false);
@@ -106,6 +195,14 @@ export default function SettingsPage() {
         default_currency: currency,
         date_format: dateFormat,
         first_day_of_week: parseInt(firstDayOfWeek, 10),
+      });
+      addNotification({
+        type: 'profile_updated',
+        title: language === 'bn' ? 'প্রোফাইল আপডেট' : 'Profile Updated',
+        description:
+          language === 'bn'
+            ? `নাম পরিবর্তন করা হয়েছে: ${fullName.trim()}`
+            : `Name changed successfully to: ${fullName.trim()}`,
       });
       toast.success('Settings updated successfully');
     } catch {
@@ -338,6 +435,156 @@ export default function SettingsPage() {
         </div>
       </div>
 
+      {/* Cloud Database & Cross-Device Sync */}
+      <div className="rounded-2xl border border-sky-100 bg-white p-6 shadow-sm dark:border-sky-950/60 dark:bg-gray-800/90">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Database className="h-5 w-5 text-sky-600 dark:text-sky-400" />
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+              {language === 'bn'
+                ? 'ক্লাউড ডাটাবেস ও রিয়েল-টাইম ডিভাইস সিঙ্ক'
+                : 'Cloud Database & Real-Time Sync'}
+            </h2>
+          </div>
+          {isCloudConnected ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              {language === 'bn' ? 'ক্লাউড কানেক্টেড' : 'Cloud Connected'}
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-900/60 dark:text-amber-300">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              {language === 'bn' ? 'লোকাল অফলাইন মোড' : 'Local Offline Mode'}
+            </span>
+          )}
+        </div>
+
+        <p className="text-xs text-gray-600 dark:text-gray-300">
+          {language === 'bn'
+            ? 'ফোন ও কম্পিউটারে একই সাথে রিয়েল-টাইমে আয়, ব্যয় ও একাউন্ট ব্যালেন্স দেখতে একটি ক্লাউড ডাটাবেস প্রয়োজন। মোবাইল থেকে টাকা অ্যাড করলে কম্পিউটারে স্বয়ংক্রিয়ভাবে আপডেট দেখতে নিচের অপশনগুলো ব্যবহার করুন।'
+            : 'Synchronize your financial records in real-time across phone, tablet, and PC with Supabase Cloud.'}
+        </p>
+
+        {isCloudConnected ? (
+          <div className="mt-4 space-y-4">
+            <div className="rounded-xl border border-gray-100 bg-gray-50/70 p-4 dark:border-gray-700/60 dark:bg-gray-800/50">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div className="text-[11px] font-medium text-gray-500 dark:text-gray-400">
+                    {language === 'bn' ? 'সংযুক্ত ক্লাউড ডাটাবেস' : 'Active Supabase Database'}
+                  </div>
+                  <div className="mt-0.5 font-mono text-xs font-semibold text-teal-700 dark:text-teal-300">
+                    {activeSupabaseUrl}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400 font-medium">
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" style={{ animationDuration: '4s' }} />
+                  <span>{language === 'bn' ? 'রিয়েল-টাইম সিঙ্ক সক্রিয়' : 'Live Sync Active'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Device Pairing Section */}
+            <div className="rounded-xl border border-sky-100 bg-sky-50/60 p-4 dark:border-sky-900/40 dark:bg-sky-950/20">
+              <div className="flex items-start gap-3">
+                <div className="flex -space-x-1 pt-0.5">
+                  <Smartphone className="h-5 w-5 text-sky-600 dark:text-sky-400" />
+                  <Laptop className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+                </div>
+                <div className="flex-1">
+                  <div className="text-xs font-semibold text-gray-900 dark:text-white">
+                    {language === 'bn'
+                      ? 'মোবাইল ও কম্পিউটারের সাথে কানেক্ট করুন (১-ক্লিক পেয়ারিং)'
+                      : 'Pair with Phone & Computer (1-Click Sync)'}
+                  </div>
+                  <p className="mt-1 text-[11px] text-gray-600 dark:text-gray-300">
+                    {language === 'bn'
+                      ? 'নিচের বাটনে ক্লিক করে পেয়ারিং লিংক কপি করুন। এরপর আপনার ফোন বা কম্পিউটারের ব্রাউজারে লিংকটি খুললে সাথে সাথে একই ডাটাবেসে কানেক্ট হয়ে যাবে!'
+                      : 'Copy the pairing link and open it on your phone or PC browser to instantly synchronize everything.'}
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="primary"
+                      size="sm"
+                      onClick={handleCopyPairingLink}
+                      leftIcon={pairingCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    >
+                      {pairingCopied
+                        ? (language === 'bn' ? 'লিংক কপি হয়েছে!' : 'Link Copied!')
+                        : (language === 'bn' ? 'ডিভাইস পেয়ারিং লিংক কপি করুন' : 'Copy Device Pairing Link')}
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      loading={isMigrating}
+                      onClick={handleMigrate}
+                      leftIcon={<Cloud className="h-4 w-4 text-sky-600" />}
+                    >
+                      {language === 'bn' ? 'লোকাল ডাটা ক্লাউডে আপলোড করুন' : 'Upload Local Data to Cloud'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setDisconnectDialogOpen(true)}
+                className="text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+              >
+                {language === 'bn' ? 'ক্লাউড সংযোগ বিচ্ছিন্ন করুন' : 'Disconnect Cloud Database'}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-4 space-y-4">
+            <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3.5 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+              <p>
+                <strong>কেন ফোন এবং কম্পিউটারে ব্যালেন্স আলাদা দেখাচ্ছিল?</strong>
+              </p>
+              <p className="mt-1 text-[11px] text-amber-800 dark:text-amber-300">
+                কারণ আপনার সাইটটি তখন ব্রাউজারের লোকাল মেমোরি (Local Storage) ব্যবহার করছিল। ফোনের ব্রাউজার এবং কম্পিউটারের ব্রাউজার আলাদা মেমোরিতে থাকে। দুই ডিভাইসে একই লাইভ ব্যালেন্স পেতে নিচের ফর্মে আপনার Supabase ডাটাবেস URL এবং Anon Key দিন অথবা Vercel Environment Variables এ সেট করুন।
+              </p>
+            </div>
+
+            <form onSubmit={handleSaveCloudConfig} className="space-y-3">
+              <Input
+                label={language === 'bn' ? 'Supabase Project URL' : 'Supabase Project URL'}
+                placeholder="https://your-project.supabase.co"
+                value={cloudUrlInput}
+                onChange={(e) => setCloudUrlInput(e.target.value)}
+                helperText="Supabase Dashboard -> Settings -> API -> Project URL"
+              />
+
+              <Input
+                label={language === 'bn' ? 'Supabase Anon Public API Key' : 'Supabase Anon Public API Key'}
+                placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                value={cloudKeyInput}
+                onChange={(e) => setCloudKeyInput(e.target.value)}
+                helperText="Supabase Dashboard -> Settings -> API -> Project API keys (anon, public)"
+              />
+
+              <div className="flex items-center gap-2 pt-1">
+                <Button
+                  type="submit"
+                  variant="primary"
+                  loading={isSavingCloud}
+                  leftIcon={<Database className="h-4 w-4" />}
+                >
+                  {language === 'bn' ? 'ক্লাউড ডাটাবেস সংযুক্ত করুন' : 'Connect Cloud Database'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        )}
+      </div>
+
       {/* Change Password */}
       <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-800/90">
         <div className="mb-4 flex items-center gap-2">
@@ -454,6 +701,24 @@ export default function SettingsPage() {
         confirmText="Yes, delete everything"
         variant="danger"
         loading={isDeletingAccount}
+      />
+
+      <ConfirmDialog
+        isOpen={disconnectDialogOpen}
+        onClose={() => setDisconnectDialogOpen(false)}
+        onConfirm={() => {
+          clearSupabaseCloudConfig();
+          setDisconnectDialogOpen(false);
+        }}
+        title={language === 'bn' ? 'ক্লাউড ডাটাবেস ডিসকানেক্ট করবেন?' : 'Disconnect Cloud Database?'}
+        message={
+          language === 'bn'
+            ? 'ক্লাউড সংযোগ বিচ্ছিন্ন করলে ওয়েবসাইটটি লোকাল মোডে ফিরে যাবে। আপনি যেকোনো সময় আবার সংযোগ করতে পারবেন।'
+            : 'Disconnecting will revert the application to local offline mode. You can reconnect anytime.'
+        }
+        confirmText={language === 'bn' ? 'ডিসকানেক্ট করুন' : 'Disconnect'}
+        cancelText={language === 'bn' ? 'বাতিল' : 'Cancel'}
+        variant="danger"
       />
 
       <WeeklyEmailModal

@@ -3,6 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useNotifications } from '@/contexts/NotificationContext';
+import { NotificationDrawer } from '@/components/notifications/NotificationDrawer';
 import clsx from 'clsx';
 import {
   Search,
@@ -46,20 +48,21 @@ interface HeaderProps {
 export function Header({ onToggleMobileSidebar }: HeaderProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, signOut, isConfigured } = useAuth();
+  const { user, profile, signOut, isConfigured } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { language, toggleLanguage, t } = useLanguage();
+  const { unreadCount } = useNotifications();
+  const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showSetupModal, setShowSetupModal] = useState(false);
   const [copiedEnv, setCopiedEnv] = useState(false);
-  const [notificationCount] = useState(0);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   const titleObj = routeTitles[location.pathname];
   const pageTitle = titleObj ? titleObj[language] : (language === 'bn' ? 'আমার টাকা' : 'My Money');
 
   const displayName =
-    user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
+    profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || (language === 'bn' ? 'আবিদ' : 'Abid');
   const avatarInitial = displayName.charAt(0).toUpperCase();
 
   // Close dropdown on outside click
@@ -139,13 +142,15 @@ export function Header({ onToggleMobileSidebar }: HeaderProps) {
 
           {/* Notifications */}
           <button
+            type="button"
+            onClick={() => setShowNotifications(true)}
             className="relative rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-300"
             title="Notifications"
           >
             <Bell className="h-5 w-5" />
-            {notificationCount > 0 && (
+            {unreadCount > 0 && (
               <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
-                {notificationCount > 9 ? '9+' : notificationCount}
+                {unreadCount > 9 ? '9+' : unreadCount}
               </span>
             )}
           </button>
@@ -309,6 +314,11 @@ VITE_SUPABASE_ANON_KEY=eyJhbGci...
           </div>
         </div>
       )}
+
+      <NotificationDrawer
+        isOpen={showNotifications}
+        onClose={() => setShowNotifications(false)}
+      />
     </header>
   );
 }

@@ -3,6 +3,7 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { LanguageProvider } from '@/contexts/LanguageContext';
 import { DataProvider } from '@/contexts/DataContext';
+import { NotificationProvider } from '@/contexts/NotificationContext';
 import { ToastProvider } from '@/components/ui/Toast';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -27,8 +28,9 @@ export default function App() {
     <ThemeProvider>
       <LanguageProvider>
         <AuthProvider>
-          <ToastProvider />
-          <Routes>
+          <NotificationProvider>
+            <ToastProvider />
+            <Routes>
             {/* Direct access: automatically route to Dashboard without login barrier */}
             <Route path="/login" element={<Navigate to="/dashboard" replace />} />
             <Route path="/register" element={<Navigate to="/dashboard" replace />} />
@@ -63,6 +65,7 @@ export default function App() {
           {/* Catch-all redirect */}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
+          </NotificationProvider>
         </AuthProvider>
       </LanguageProvider>
     </ThemeProvider>

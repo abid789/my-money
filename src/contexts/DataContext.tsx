@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNotifications } from '@/contexts/NotificationContext';
 import {
   INITIAL_ACCOUNTS,
   INITIAL_CATEGORIES,
@@ -58,6 +59,7 @@ interface DataContextValue {
   setSelectedMonth: (month: number) => void;
   setSelectedYear: (year: number) => void;
   financialSummary: FinancialSummary;
+  isCloudConnected: boolean;
 
   // Transaction CRUD
   addTransaction: (txn: Partial<Transaction>) => Promise<void>;
@@ -95,6 +97,7 @@ interface DataContextValue {
   refreshData: () => Promise<void>;
   resetToZero: () => Promise<void>;
   loadDemoData: () => Promise<void>;
+  migrateLocalToCloud: () => Promise<{ success: boolean; count: number; message: string }>;
 }
 
 // ─── Context ────────────────────────────────────────────────────────────────
@@ -105,6 +108,7 @@ const DataContext = createContext<DataContextValue | undefined>(undefined);
 
 export function DataProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
+  const { addNotification } = useNotifications();
 
   // Data state
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -293,6 +297,78 @@ function setLocal<T>(key: string, data: T) {
     }
   }, [user, refreshData]);
 
+  // Multi-tab broadcast helper
+  const broadcastDataChange = useCallback(() => {
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        const bc = new BroadcastChannel('my-money-data-sync');
+        bc.postMessage({ type: 'REFRESH_DATA' });
+        bc.close();
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // ─── Real-Time Cross-Device & Multi-Tab Synchronization ────────────────
+  useEffect(() => {
+    if (!user) return;
+
+    // 1. Supabase Postgres Realtime Subscription (active when cloud database is connected)
+    let channel: any = null;
+    if (isSupabaseConfigured()) {
+      try {
+        channel = supabase
+          .channel('realtime-finance-sync')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public' },
+            () => {
+              refreshData();
+            }
+          )
+          .subscribe();
+      } catch (err) {
+        console.warn('Realtime subscription error:', err);
+      }
+    }
+
+    // 2. Cross-Tab Synchronization via BroadcastChannel
+    let bc: BroadcastChannel | null = null;
+    if (typeof BroadcastChannel !== 'undefined') {
+      bc = new BroadcastChannel('my-money-data-sync');
+      bc.onmessage = (event) => {
+        if (event.data?.type === 'REFRESH_DATA') {
+          refreshData();
+        }
+      };
+    }
+
+    // 3. Auto-sync on window focus / tab visibility change (e.g. user opens Chrome on PC after phone)
+    const handleFocusSync = () => {
+      if (document.visibilityState === 'visible') {
+        refreshData();
+      }
+    };
+    window.addEventListener('visibilitychange', handleFocusSync);
+    window.addEventListener('focus', handleFocusSync);
+
+    return () => {
+      if (channel) {
+        try {
+          supabase.removeChannel(channel);
+        } catch {
+          // ignore
+        }
+      }
+      if (bc) {
+        bc.close();
+      }
+      window.removeEventListener('visibilitychange', handleFocusSync);
+      window.removeEventListener('focus', handleFocusSync);
+    };
+  }, [user, refreshData]);
+
   // ═══════════════════════════════════════════════════════════════════════
   // ACCOUNT BALANCE RECALCULATION
   // ═══════════════════════════════════════════════════════════════════════
@@ -401,6 +477,19 @@ function setLocal<T>(key: string, data: T) {
         if (txn.account_id) await recalculateAccountBalance(txn.account_id);
         if (txn.to_account_id) await recalculateAccountBalance(txn.to_account_id);
         await refreshData();
+        broadcastDataChange();
+
+        const cat = categories.find((c) => c.id === txn.category_id);
+        const acc = accounts.find((a) => a.id === txn.account_id);
+        addNotification({
+          type: txn.type === 'income' ? 'income_added' : txn.type === 'transfer' ? 'transfer_added' : 'expense_added',
+          title: txn.type === 'income' ? 'Income Added' : txn.type === 'transfer' ? 'Transfer Completed' : 'Expense Added',
+          description: txn.description || 'Transaction',
+          amount: Number(txn.amount),
+          category: cat?.name,
+          account: acc?.name,
+        });
+
         toast.success('Transaction added');
         return;
       }
@@ -431,9 +520,22 @@ function setLocal<T>(key: string, data: T) {
       if (txn.to_account_id) await recalculateAccountBalance(txn.to_account_id);
 
       await refreshData();
+      broadcastDataChange();
+
+      const cat = categories.find((c) => c.id === txn.category_id);
+      const acc = accounts.find((a) => a.id === txn.account_id);
+      addNotification({
+        type: txn.type === 'income' ? 'income_added' : txn.type === 'transfer' ? 'transfer_added' : 'expense_added',
+        title: txn.type === 'income' ? 'Income Added' : txn.type === 'transfer' ? 'Transfer Completed' : 'Expense Added',
+        description: txn.description || 'Transaction',
+        amount: Number(txn.amount),
+        category: cat?.name,
+        account: acc?.name,
+      });
+
       toast.success('Transaction added');
     },
-    [user, recalculateAccountBalance, refreshData]
+    [user, categories, accounts, recalculateAccountBalance, refreshData, broadcastDataChange, addNotification]
   );
 
   const updateTransaction = useCallback(
@@ -453,6 +555,19 @@ function setLocal<T>(key: string, data: T) {
           if (txn.to_account_id) await recalculateAccountBalance(txn.to_account_id);
         }
         await refreshData();
+        broadcastDataChange();
+
+        const cat = categories.find((c) => c.id === txn.category_id);
+        const acc = accounts.find((a) => a.id === txn.account_id);
+        addNotification({
+          type: txn.type === 'income' ? 'income_updated' : 'expense_updated',
+          title: 'Transaction Updated',
+          description: txn.description || 'Transaction updated',
+          amount: txn.amount !== undefined ? Number(txn.amount) : undefined,
+          category: cat?.name,
+          account: acc?.name,
+        });
+
         toast.success('Transaction updated');
         return;
       }
@@ -495,9 +610,22 @@ function setLocal<T>(key: string, data: T) {
       }
 
       await refreshData();
+      broadcastDataChange();
+
+      const cat = categories.find((c) => c.id === txn.category_id) || oldTxn?.category;
+      const acc = accounts.find((a) => a.id === txn.account_id) || oldTxn?.account;
+      addNotification({
+        type: txn.type === 'income' || oldTxn?.type === 'income' ? 'income_updated' : 'expense_updated',
+        title: 'Transaction Updated',
+        description: txn.description || oldTxn?.description || 'Transaction updated',
+        amount: txn.amount !== undefined ? Number(txn.amount) : oldTxn ? Number(oldTxn.amount) : undefined,
+        category: cat?.name,
+        account: acc?.name,
+      });
+
       toast.success('Transaction updated');
     },
-    [user, transactions, recalculateAccountBalance, refreshData]
+    [user, categories, accounts, transactions, recalculateAccountBalance, refreshData, broadcastDataChange, addNotification]
   );
 
   const deleteTransaction = useCallback(
@@ -512,6 +640,19 @@ function setLocal<T>(key: string, data: T) {
         if (oldTxn?.account_id) await recalculateAccountBalance(oldTxn.account_id);
         if (oldTxn?.to_account_id) await recalculateAccountBalance(oldTxn.to_account_id);
         await refreshData();
+        broadcastDataChange();
+
+        if (oldTxn) {
+          addNotification({
+            type: oldTxn.type === 'income' ? 'income_deleted' : 'expense_deleted',
+            title: oldTxn.type === 'income' ? 'Income Deleted' : 'Expense Deleted',
+            description: oldTxn.description || 'Transaction deleted',
+            amount: Number(oldTxn.amount),
+            category: oldTxn.category?.name,
+            account: oldTxn.account?.name,
+          });
+        }
+
         toast.success('Transaction deleted');
         return;
       }
@@ -530,9 +671,22 @@ function setLocal<T>(key: string, data: T) {
       if (oldTxn?.to_account_id) await recalculateAccountBalance(oldTxn.to_account_id);
 
       await refreshData();
+      broadcastDataChange();
+
+      if (oldTxn) {
+        addNotification({
+          type: oldTxn.type === 'income' ? 'income_deleted' : 'expense_deleted',
+          title: oldTxn.type === 'income' ? 'Income Deleted' : 'Expense Deleted',
+          description: oldTxn.description || 'Transaction deleted',
+          amount: Number(oldTxn.amount),
+          category: oldTxn.category?.name,
+          account: oldTxn.account?.name,
+        });
+      }
+
       toast.success('Transaction deleted');
     },
-    [user, transactions, recalculateAccountBalance, refreshData]
+    [user, transactions, recalculateAccountBalance, refreshData, broadcastDataChange, addNotification]
   );
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -562,6 +716,14 @@ function setLocal<T>(key: string, data: T) {
         accs.push(newAcc);
         setLocal('accounts', accs);
         await refreshData();
+        broadcastDataChange();
+        addNotification({
+          type: 'balance_updated',
+          title: 'Account / Wallet Added',
+          description: newAcc.name,
+          amount: newAcc.opening_balance,
+          account: newAcc.name,
+        });
         toast.success('Account added');
         return;
       }
@@ -580,9 +742,17 @@ function setLocal<T>(key: string, data: T) {
 
       if (err) throw err;
       await refreshData();
+      broadcastDataChange();
+      addNotification({
+        type: 'balance_updated',
+        title: 'Account / Wallet Added',
+        description: account.name || 'Account added',
+        amount: account.opening_balance || 0,
+        account: account.name,
+      });
       toast.success('Account added');
     },
-    [user, refreshData]
+    [user, refreshData, broadcastDataChange, addNotification]
   );
 
   const updateAccount = useCallback(
@@ -597,6 +767,14 @@ function setLocal<T>(key: string, data: T) {
           setLocal('accounts', accs);
         }
         await refreshData();
+        broadcastDataChange();
+        addNotification({
+          type: 'balance_updated',
+          title: 'Wallet / Balance Updated',
+          description: account.name ? `${account.name} balance updated` : 'Account updated',
+          amount: account.current_balance !== undefined ? Number(account.current_balance) : undefined,
+          account: account.name,
+        });
         toast.success('Account updated');
         return;
       }
@@ -608,9 +786,17 @@ function setLocal<T>(key: string, data: T) {
 
       if (err) throw err;
       await refreshData();
+      broadcastDataChange();
+      addNotification({
+        type: 'balance_updated',
+        title: 'Wallet / Balance Updated',
+        description: account.name ? `${account.name} balance updated` : 'Account updated',
+        amount: account.current_balance !== undefined ? Number(account.current_balance) : undefined,
+        account: account.name,
+      });
       toast.success('Account updated');
     },
-    [user, refreshData]
+    [user, refreshData, broadcastDataChange, addNotification]
   );
 
   const deleteAccount = useCallback(
@@ -619,12 +805,23 @@ function setLocal<T>(key: string, data: T) {
 
       if (!isSupabaseConfigured()) {
         const accs = getLocal<Account[]>('accounts', INITIAL_ACCOUNTS);
+        const old = accs.find((a) => a.id === id);
         setLocal('accounts', accs.filter((a) => a.id !== id));
         await refreshData();
+        broadcastDataChange();
+        if (old) {
+          addNotification({
+            type: 'balance_updated',
+            title: 'Account Removed',
+            description: old.name,
+            account: old.name,
+          });
+        }
         toast.success('Account deleted');
         return;
       }
 
+      const oldAcc = accounts.find((a) => a.id === id);
       const { error: err } = await supabase
         .from('accounts')
         .delete()
@@ -632,9 +829,18 @@ function setLocal<T>(key: string, data: T) {
 
       if (err) throw err;
       await refreshData();
+      broadcastDataChange();
+      if (oldAcc) {
+        addNotification({
+          type: 'balance_updated',
+          title: 'Account Removed',
+          description: oldAcc.name,
+          account: oldAcc.name,
+        });
+      }
       toast.success('Account deleted');
     },
-    [user, refreshData]
+    [user, accounts, refreshData, broadcastDataChange, addNotification]
   );
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -1221,6 +1427,131 @@ function setLocal<T>(key: string, data: T) {
     toast.success('নমুনা ডেমো ডেটা লোড করা হয়েছে');
   }, [refreshData]);
 
+  const migrateLocalToCloud = useCallback(async () => {
+    if (!user) return { success: false, count: 0, message: 'User not authenticated' };
+    if (!isSupabaseConfigured()) {
+      return { success: false, count: 0, message: 'Supabase cloud database is not connected yet.' };
+    }
+
+    try {
+      setLoading(true);
+      const localTxns = getLocal<Transaction[]>('transactions', []);
+      const localAccs = getLocal<Account[]>('accounts', []);
+      const localCats = getLocal<Category[]>('categories', []);
+
+      let count = 0;
+
+      // 1. Upload accounts
+      for (const acc of localAccs) {
+        const { data: existing } = await supabase
+          .from('accounts')
+          .select('id')
+          .eq('name', acc.name)
+          .maybeSingle();
+
+        if (!existing) {
+          await supabase.from('accounts').insert({
+            user_id: user.id,
+            name: acc.name,
+            type: acc.type || 'cash',
+            opening_balance: Number(acc.opening_balance) || 0,
+            current_balance: Number(acc.current_balance) || 0,
+            currency: acc.currency || 'BDT',
+            icon: acc.icon || 'Wallet',
+            color: acc.color || '#14b8a6',
+            is_active: acc.is_active ?? true,
+          });
+          count++;
+        }
+      }
+
+      // 2. Fetch cloud accounts map
+      const { data: cloudAccs } = await supabase.from('accounts').select('*');
+      const accNameToId = new Map((cloudAccs || []).map((a: any) => [a.name, a.id]));
+
+      // 3. Upload categories
+      for (const cat of localCats) {
+        const { data: existing } = await supabase
+          .from('categories')
+          .select('id')
+          .eq('name', cat.name)
+          .maybeSingle();
+
+        if (!existing) {
+          await supabase.from('categories').insert({
+            user_id: user.id,
+            name: cat.name,
+            type: cat.type,
+            icon: cat.icon || 'Tag',
+            color: cat.color || '#14b8a6',
+          });
+          count++;
+        }
+      }
+
+      const { data: cloudCats } = await supabase.from('categories').select('*');
+      const catNameToId = new Map((cloudCats || []).map((c: any) => [c.name, c.id]));
+
+      // 4. Upload transactions
+      for (const txn of localTxns) {
+        const { data: existing } = await supabase
+          .from('transactions')
+          .select('id')
+          .eq('description', txn.description)
+          .eq('amount', txn.amount)
+          .eq('date', txn.date)
+          .maybeSingle();
+
+        if (!existing) {
+          const catName = txn.category?.name;
+          const accName = txn.account?.name;
+          const toAccName = txn.to_account?.name;
+
+          await supabase.from('transactions').insert({
+            user_id: user.id,
+            type: txn.type,
+            amount: txn.amount,
+            date: txn.date,
+            time: txn.time || null,
+            description: txn.description || '',
+            category_id: (catName && catNameToId.get(catName)) || null,
+            account_id: (accName && accNameToId.get(accName)) || cloudAccs?.[0]?.id,
+            to_account_id: (toAccName && accNameToId.get(toAccName)) || null,
+            payment_method: txn.payment_method || null,
+            merchant: txn.merchant || null,
+            notes: txn.notes || null,
+            tags: txn.tags || [],
+          });
+          count++;
+        }
+      }
+
+      await refreshData();
+      broadcastDataChange();
+
+      addNotification({
+        type: 'balance_updated',
+        title: 'Cloud Database Synced',
+        description: `Successfully migrated ${count} local records to cloud database`,
+      });
+
+      return {
+        success: true,
+        count,
+        message: `সফলভাবে ${count}টি রেকর্ড ক্লাউড ডাটাবেসে সিঙ্ক করা হয়েছে!`,
+      };
+    } catch (err: any) {
+      console.error('Migration error:', err);
+      return {
+        success: false,
+        count: 0,
+        message: err?.message || 'Failed to migrate local data to cloud',
+      };
+    } finally {
+      setLoading(false);
+    }
+  }, [user, refreshData, broadcastDataChange, addNotification]);
+
   // ═══════════════════════════════════════════════════════════════════════
   // FINANCIAL SUMMARY (computed from selected month/year)
   // ═══════════════════════════════════════════════════════════════════════
@@ -1355,6 +1686,8 @@ function setLocal<T>(key: string, data: T) {
       refreshData,
       resetToZero,
       loadDemoData,
+      isCloudConnected: isSupabaseConfigured(),
+      migrateLocalToCloud,
     }),
     [
       accounts,
@@ -1391,6 +1724,7 @@ function setLocal<T>(key: string, data: T) {
       refreshData,
       resetToZero,
       loadDemoData,
+      migrateLocalToCloud,
     ]
   );
 
