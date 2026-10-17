@@ -4,7 +4,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 function getStoredCloudConfig(): { url: string; key: string } {
   if (typeof window === 'undefined') return { url: '', key: '' };
 
-  // 1. Check if device pairing token is present in the URL (?sync_config=...)
+  // 1. Check if device pairing token is present in the URL (?sync_config=... or ?pair_sync=...)
   try {
     const params = new URLSearchParams(window.location.search);
     const syncToken = params.get('sync_config');
@@ -19,8 +19,41 @@ function getStoredCloudConfig(): { url: string; key: string } {
         return { url: decoded.url, key: decoded.key };
       }
     }
+
+    const pairSync = params.get('pair_sync');
+    if (pairSync) {
+      const decoded = JSON.parse(decodeURIComponent(escape(atob(pairSync))));
+      if (decoded.auth) {
+        localStorage.setItem('my-money-local-auth', JSON.stringify(decoded.auth));
+        const sessionRecord = {
+          token: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+          userId: decoded.auth.user.id,
+          email: decoded.auth.email,
+          expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
+        };
+        localStorage.setItem('my-money-local-session', JSON.stringify(sessionRecord));
+      }
+      if (decoded.cloud?.url && decoded.cloud?.key) {
+        localStorage.setItem('my-money-cloud-url', decoded.cloud.url);
+        localStorage.setItem('my-money-cloud-key', decoded.cloud.key);
+      }
+      if (decoded.data?.transactions?.length) {
+        localStorage.setItem('my-money-transactions', JSON.stringify(decoded.data.transactions));
+      }
+      if (decoded.data?.accounts?.length) {
+        localStorage.setItem('my-money-accounts', JSON.stringify(decoded.data.accounts));
+      }
+      if (decoded.data?.categories?.length) {
+        localStorage.setItem('my-money-categories', JSON.stringify(decoded.data.categories));
+      }
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, cleanUrl);
+      if (decoded.cloud?.url && decoded.cloud?.key) {
+        return { url: decoded.cloud.url, key: decoded.cloud.key };
+      }
+    }
   } catch (err) {
-    console.warn('Failed to parse sync_config URL parameter:', err);
+    console.warn('Failed to parse sync URL parameter:', err);
   }
 
   // 2. Check localStorage
@@ -106,12 +139,41 @@ export function clearSupabaseCloudConfig() {
  * to instantly synchronize to the exact same cloud database!
  */
 export function getDevicePairingUrl(): string {
-  if (!isSupabaseConfigured()) return '';
-  const payload = JSON.stringify({
-    url: activeSupabaseUrl,
-    key: activeSupabaseAnonKey,
-  });
-  const token = btoa(unescape(encodeURIComponent(payload)));
-  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://my-money-tau.vercel.app';
-  return `${origin}/?sync_config=${token}`;
+  const origin =
+    typeof window !== 'undefined'
+      ? window.location.origin
+      : 'https://my-money-tau.vercel.app';
+
+  if (isSupabaseConfigured()) {
+    const payload = JSON.stringify({
+      url: activeSupabaseUrl,
+      key: activeSupabaseAnonKey,
+    });
+    const token = btoa(unescape(encodeURIComponent(payload)));
+    return `${origin}/?sync_config=${token}`;
+  }
+
+  // Local Device Pairing: Encode master account & existing data to pair phone with PC
+  try {
+    const authRaw = localStorage.getItem('my-money-local-auth');
+    const txnsRaw = localStorage.getItem('my-money-transactions');
+    const accsRaw = localStorage.getItem('my-money-accounts');
+    const catsRaw = localStorage.getItem('my-money-categories');
+
+    if (!authRaw) return '';
+
+    const payload = {
+      auth: JSON.parse(authRaw),
+      data: {
+        transactions: txnsRaw ? JSON.parse(txnsRaw) : [],
+        accounts: accsRaw ? JSON.parse(accsRaw) : [],
+        categories: catsRaw ? JSON.parse(catsRaw) : [],
+      },
+    };
+
+    const token = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+    return `${origin}/?pair_sync=${token}`;
+  } catch {
+    return '';
+  }
 }

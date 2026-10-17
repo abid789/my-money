@@ -323,9 +323,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Local Mode: Verify against stored PBKDF2 hash
       const savedAuthRaw = localStorage.getItem('my-money-local-auth');
       if (!savedAuthRaw) {
-        throw new Error(
-          'No account found on this device. Please create an account first to secure your finances.'
-        );
+        // First-time sign-in on this device: securely initialize master account with entered credentials
+        await signUp(email, password, email.split('@')[0]);
+        return;
       }
 
       const localAuth = JSON.parse(savedAuthRaw);

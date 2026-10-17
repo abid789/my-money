@@ -549,8 +549,43 @@ export default function SettingsPage() {
                 <strong>কেন ফোন এবং কম্পিউটারে ব্যালেন্স আলাদা দেখাচ্ছিল?</strong>
               </p>
               <p className="mt-1 text-[11px] text-amber-800 dark:text-amber-300">
-                কারণ আপনার সাইটটি তখন ব্রাউজারের লোকাল মেমোরি (Local Storage) ব্যবহার করছিল। ফোনের ব্রাউজার এবং কম্পিউটারের ব্রাউজার আলাদা মেমোরিতে থাকে। দুই ডিভাইসে একই লাইভ ব্যালেন্স পেতে নিচের ফর্মে আপনার Supabase ডাটাবেস URL এবং Anon Key দিন অথবা Vercel Environment Variables এ সেট করুন।
+                কারণ আপনার সাইটটি তখন ব্রাউজারের লোকাল মেমোরি (Local Storage) ব্যবহার করছিল। ফোনের ব্রাউজার এবং কম্পিউটারের ব্রাউজার আলাদা মেমোরিতে থাকে।
               </p>
+            </div>
+
+            {/* Device Pairing Section for Local Mode */}
+            <div className="rounded-xl border border-sky-100 bg-sky-50/60 p-4 dark:border-sky-900/40 dark:bg-sky-950/20">
+              <div className="flex items-start gap-3">
+                <div className="flex -space-x-1 pt-0.5">
+                  <Smartphone className="h-5 w-5 text-sky-600 dark:text-sky-400" />
+                  <Laptop className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+                </div>
+                <div className="flex-1">
+                  <div className="text-xs font-semibold text-gray-900 dark:text-white">
+                    {language === 'bn'
+                      ? 'ফোন ও কম্পিউটারে একই একাউন্ট সিঙ্ক করুন (১-ক্লিক পেয়ারিং)'
+                      : 'Pair Account with Phone & Computer (1-Click Sync)'}
+                  </div>
+                  <p className="mt-1 text-[11px] text-gray-600 dark:text-gray-300">
+                    {language === 'bn'
+                      ? 'নিচের বাটনে ক্লিক করে লিংকটি কপি করে আপনার কম্পিউটারে ওপেন করুন। সাথে সাথে আপনার ফোনের একাউন্ট ও সকল হিসাব পিসিতে লগইন হয়ে যাবে!'
+                      : 'Copy this link and open it on your PC to instantly clone your account, login session, and records!'}
+                  </p>
+                  <div className="mt-3">
+                    <Button
+                      type="button"
+                      variant="primary"
+                      size="sm"
+                      onClick={handleCopyPairingLink}
+                      leftIcon={pairingCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    >
+                      {pairingCopied
+                        ? (language === 'bn' ? 'লিংক কপি হয়েছে!' : 'Link Copied!')
+                        : (language === 'bn' ? '১-ক্লিক পেয়ারিং লিংক কপি করুন' : 'Copy 1-Click Pairing Link')}
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <form onSubmit={handleSaveCloudConfig} className="space-y-3">

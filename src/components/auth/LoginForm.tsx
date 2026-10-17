@@ -147,28 +147,21 @@ export default function LoginForm() {
             <div className="mb-6 rounded-xl border border-teal-200 bg-teal-50/90 p-4 text-sm dark:border-teal-900/60 dark:bg-teal-950/40">
               <div className="flex items-start gap-3">
                 <Lock className="mt-0.5 h-5 w-5 shrink-0 text-teal-600 dark:text-teal-400" />
-                <div className="flex-1 space-y-2">
+                <div className="flex-1 space-y-1.5">
                   <p className="font-semibold text-teal-900 dark:text-teal-200">
-                    Welcome! Set Up Your Master Password
+                    নিরাপদ লগইন ও ডিভাইস সিঙ্ক
                   </p>
                   <p className="text-xs text-teal-800/90 dark:text-teal-300 leading-relaxed">
-                    This personal finance tracker is private. Please create your secure master password to protect your records.
+                    আপনার ফোনে যে ইমেইল ও পাসওয়ার্ড ব্যবহার করেছেন, তা দিয়ে নিচে সরাসরি সাইন-ইন করুন। এই পিসিতেও একই পাসওয়ার্ড স্বয়ংক্রিয়ভাবে সক্রিয় হয়ে যাবে।
                   </p>
                   <div className="flex items-center gap-2 pt-1">
-                    <Link
-                      to="/register"
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-teal-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-teal-700"
-                    >
-                      Create Master Account
-                      <ArrowRight className="h-3.5 w-3.5" />
-                    </Link>
                     <button
                       type="button"
                       onClick={() => setShowSetupModal(true)}
-                      className="inline-flex items-center gap-1 text-xs font-medium text-teal-700 underline hover:text-teal-800 dark:text-teal-400"
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700 underline hover:text-teal-800 dark:text-teal-400"
                     >
                       <Database className="h-3.5 w-3.5" />
-                      Connect Cloud DB
+                      ক্লাউড ডাটাবেস গাইড (Supabase)
                     </button>
                   </div>
                 </div>
