@@ -15,6 +15,35 @@ export function isServiceRoleKey(key: string): boolean {
   return false;
 }
 
+// ── Normalize and validate Supabase URL ───────────────────────────────────────
+export function normalizeSupabaseUrl(rawUrl: string): string {
+  if (!rawUrl) return '';
+  let url = rawUrl.trim();
+
+  // If user pasted dashboard URL: https://supabase.com/dashboard/project/abcdefghijk...
+  const dashboardMatch = url.match(/supabase\.com\/dashboard\/project\/([a-zA-Z0-9_-]+)/i);
+  if (dashboardMatch && dashboardMatch[1]) {
+    return `https://${dashboardMatch[1]}.supabase.co`;
+  }
+
+  // If it contains <project-ref>.supabase.co anywhere in the string
+  const refMatch = url.match(/([a-zA-Z0-9_-]+)\.supabase\.co/i);
+  if (refMatch && refMatch[1]) {
+    return `https://${refMatch[1]}.supabase.co`;
+  }
+
+  // Prepend https:// if missing
+  if (!/^https?:\/\//i.test(url)) {
+    url = `https://${url}`;
+  }
+
+  // Strip trailing slashes and API subpaths like /rest/v1 or /auth/v1
+  url = url.replace(/\/+$/, '');
+  url = url.replace(/\/(rest|auth)\/v[0-9]+$/i, '');
+
+  return url;
+}
+
 // ── Check if pairing configuration exists in URL or LocalStorage ────────────────
 function getStoredCloudConfig(): { url: string; key: string } {
   if (typeof window === 'undefined') return { url: '', key: '' };
@@ -26,12 +55,13 @@ function getStoredCloudConfig(): { url: string; key: string } {
     if (syncToken) {
       const decoded = JSON.parse(decodeURIComponent(escape(atob(syncToken))));
       if (decoded.url && decoded.key && !isServiceRoleKey(decoded.key)) {
-        localStorage.setItem('my-money-cloud-url', decoded.url);
+        const cleanUrl = normalizeSupabaseUrl(decoded.url);
+        localStorage.setItem('my-money-cloud-url', cleanUrl);
         localStorage.setItem('my-money-cloud-key', decoded.key);
         // Clean URL parameter without reloading
-        const cleanUrl = window.location.pathname;
-        window.history.replaceState({}, document.title, cleanUrl);
-        return { url: decoded.url, key: decoded.key };
+        const cleanPath = window.location.pathname;
+        window.history.replaceState({}, document.title, cleanPath);
+        return { url: cleanUrl, key: decoded.key };
       }
     }
 
@@ -49,7 +79,8 @@ function getStoredCloudConfig(): { url: string; key: string } {
         localStorage.setItem('my-money-local-session', JSON.stringify(sessionRecord));
       }
       if (decoded.cloud?.url && decoded.cloud?.key && !isServiceRoleKey(decoded.cloud.key)) {
-        localStorage.setItem('my-money-cloud-url', decoded.cloud.url);
+        const cleanUrl = normalizeSupabaseUrl(decoded.cloud.url);
+        localStorage.setItem('my-money-cloud-url', cleanUrl);
         localStorage.setItem('my-money-cloud-key', decoded.cloud.key);
       }
       if (decoded.data?.transactions?.length) {
@@ -61,10 +92,10 @@ function getStoredCloudConfig(): { url: string; key: string } {
       if (decoded.data?.categories?.length) {
         localStorage.setItem('my-money-categories', JSON.stringify(decoded.data.categories));
       }
-      const cleanUrl = window.location.pathname;
-      window.history.replaceState({}, document.title, cleanUrl);
+      const cleanPath = window.location.pathname;
+      window.history.replaceState({}, document.title, cleanPath);
       if (decoded.cloud?.url && decoded.cloud?.key && !isServiceRoleKey(decoded.cloud.key)) {
-        return { url: decoded.cloud.url, key: decoded.cloud.key };
+        return { url: normalizeSupabaseUrl(decoded.cloud.url), key: decoded.cloud.key };
       }
     }
   } catch (err) {
@@ -73,14 +104,18 @@ function getStoredCloudConfig(): { url: string; key: string } {
 
   // 2. Check localStorage
   try {
-    const savedUrl = localStorage.getItem('my-money-cloud-url');
+    const savedUrlRaw = localStorage.getItem('my-money-cloud-url');
     const savedKey = localStorage.getItem('my-money-cloud-key');
-    if (savedUrl && savedKey) {
+    if (savedUrlRaw && savedKey) {
       if (isServiceRoleKey(savedKey)) {
         console.warn('Detected forbidden service_role secret key in browser. Removing.');
         localStorage.removeItem('my-money-cloud-key');
         localStorage.removeItem('my-money-cloud-url');
         return { url: '', key: '' };
+      }
+      const savedUrl = normalizeSupabaseUrl(savedUrlRaw);
+      if (savedUrl !== savedUrlRaw) {
+        localStorage.setItem('my-money-cloud-url', savedUrl);
       }
       return { url: savedUrl, key: savedKey };
     }
@@ -110,6 +145,7 @@ export const isSupabaseConfigured = (): boolean => {
     !!activeSupabaseUrl &&
     !!activeSupabaseAnonKey &&
     activeSupabaseUrl.startsWith('http') &&
+    !activeSupabaseUrl.includes('placeholder.supabase.co') &&
     activeSupabaseUrl !== 'your-supabase-project-url' &&
     activeSupabaseAnonKey !== 'your-supabase-anon-key' &&
     !isServiceRoleKey(activeSupabaseAnonKey)
@@ -161,7 +197,8 @@ export function saveSupabaseCloudConfig(url: string, key: string) {
       "আপনি ভুলবশত 'service_role' (Secret) কি দিয়েছেন! অনুগ্রহ করে 'anon' (Public) কি কপি করে দিন।"
     );
   }
-  localStorage.setItem('my-money-cloud-url', url.trim());
+  const cleanUrl = normalizeSupabaseUrl(url);
+  localStorage.setItem('my-money-cloud-url', cleanUrl);
   localStorage.setItem('my-money-cloud-key', key.trim());
   window.location.reload();
 }

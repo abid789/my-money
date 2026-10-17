@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { clearSupabaseCloudConfig } from '@/lib/supabase';
 import { z } from 'zod';
 import {
   Eye,
@@ -142,6 +143,23 @@ export default function LoginForm() {
             Welcome back
           </h2>
 
+          {/* Cloud Mode Active Banner with Switch Back button */}
+          {isConfigured && (
+            <div className="mb-4 flex items-center justify-between rounded-xl border border-teal-200 bg-teal-50/90 px-3.5 py-2.5 text-xs text-teal-900 dark:border-teal-900/60 dark:bg-teal-950/40 dark:text-teal-200">
+              <span className="flex items-center gap-1.5 font-medium">
+                <Database className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
+                ক্লাউড ডাটাবেস মোড সক্রিয় (Supabase)
+              </span>
+              <button
+                type="button"
+                onClick={() => clearSupabaseCloudConfig()}
+                className="font-semibold text-teal-700 underline hover:text-teal-950 dark:text-teal-300"
+              >
+                লোকাল মোডে ফিরুন
+              </button>
+            </div>
+          )}
+
           {/* Private Security State Banner */}
           {!isConfigured && !hasLocalAccount && (
             <div className="mb-6 rounded-xl border border-teal-200 bg-teal-50/90 p-4 text-sm dark:border-teal-900/60 dark:bg-teal-950/40">
@@ -188,9 +206,34 @@ export default function LoginForm() {
           )}
 
           {generalError && (
-            <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/30 dark:text-red-400">
-              {generalError}
-            </div>
+            generalError.includes('Failed to fetch') || generalError.includes('NetworkError') ? (
+              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-xs text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200 space-y-2.5">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-red-900 dark:text-red-100">
+                      ক্লাউড সার্ভার সংযোগে ত্রুটি (Failed to fetch)
+                    </p>
+                    <p className="mt-1 text-[11px] text-red-700 dark:text-red-300 leading-relaxed">
+                      ক্লাউড সার্ভারের সাথে যোগাযোগ করা যাচ্ছে না। আপনার Supabase Project URL সঠিক নয় অথবা নেটওয়ার্কে সমস্যা রয়েছে। নিচের বাটনে ক্লিক করে এক ক্লিকেই লোকাল মোডে ফেরত যেতে পারবেন।
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => clearSupabaseCloudConfig()}
+                    className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-red-700 transition"
+                  >
+                    ক্লাউড সংযোগ রিসেট করে লোকাল মোডে ফিরুন
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/30 dark:text-red-400">
+                {generalError}
+              </div>
+            )
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">

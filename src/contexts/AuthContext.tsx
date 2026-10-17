@@ -207,27 +207,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signUp = useCallback(
     async (email: string, password: string, fullName: string) => {
       if (isSupabaseConfigured()) {
-        const { data, error } = await supabase.auth.signUp({
-          email: email.trim(),
-          password,
-          options: {
-            data: {
-              full_name: fullName.trim(),
+        try {
+          const { data, error } = await supabase.auth.signUp({
+            email: email.trim(),
+            password,
+            options: {
+              data: {
+                full_name: fullName.trim(),
+              },
             },
-          },
-        });
+          });
 
-        if (error) {
-          throw error;
-        }
+          if (error) {
+            throw error;
+          }
 
-        if (data.session && data.user) {
-          setSession(data.session);
-          setUser(data.user);
-          await fetchProfile(data.user.id);
+          if (data.session && data.user) {
+            setSession(data.session);
+            setUser(data.user);
+            await fetchProfile(data.user.id);
+          }
+          toast.success('Account created successfully!');
+          return;
+        } catch (cloudErr: any) {
+          const errMsg = cloudErr?.message || '';
+          const isNetworkError =
+            errMsg.includes('Failed to fetch') ||
+            errMsg.includes('NetworkError') ||
+            cloudErr?.name === 'TypeError';
+
+          if (isNetworkError) {
+            throw new Error(
+              'Failed to fetch: ক্লাউড সার্ভারের সাথে সংযোগ করা সম্ভব হয়নি। আপনার Supabase URL সঠিক কিনা দেখুন অথবা নিচে "লোকাল মোডে ফিরুন" বাটনে চাপ দিন।'
+            );
+          }
+          throw cloudErr;
         }
-        toast.success('Account created successfully!');
-        return;
       }
 
       // Local Mode: Hash password with PBKDF2 and save credentials
@@ -302,22 +317,63 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(
     async (email: string, password: string) => {
       if (isSupabaseConfigured()) {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password,
-        });
+        try {
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email: email.trim(),
+            password,
+          });
 
-        if (error) {
-          throw error;
-        }
+          if (error) {
+            throw error;
+          }
 
-        if (data.session && data.user) {
-          setSession(data.session);
-          setUser(data.user);
-          await fetchProfile(data.user.id);
+          if (data.session && data.user) {
+            setSession(data.session);
+            setUser(data.user);
+            await fetchProfile(data.user.id);
+          }
+          toast.success('Welcome back!');
+          return;
+        } catch (cloudErr: any) {
+          const errMsg = cloudErr?.message || '';
+          const isNetworkError =
+            errMsg.includes('Failed to fetch') ||
+            errMsg.includes('NetworkError') ||
+            cloudErr?.name === 'TypeError';
+
+          if (isNetworkError) {
+            // Check if local account exists and matches entered credentials
+            try {
+              const savedAuthRaw = localStorage.getItem('my-money-local-auth');
+              if (savedAuthRaw) {
+                const localAuth = JSON.parse(savedAuthRaw);
+                if (localAuth.email?.toLowerCase() === email.trim().toLowerCase()) {
+                  const inputHash = await hashPassword(password, localAuth.salt);
+                  if (inputHash === localAuth.passwordHash) {
+                    const sessionRecord = {
+                      token: crypto.randomUUID(),
+                      userId: localAuth.user.id,
+                      email: localAuth.email,
+                      expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
+                    };
+                    localStorage.setItem('my-money-local-session', JSON.stringify(sessionRecord));
+                    setUser(localAuth.user);
+                    setProfile(localAuth.profile);
+                    toast.success('ক্লাউড ডাটাবেজ অফলাইন থাকায় লোকাল অ্যাকাউন্টে লগইন করা হয়েছে!');
+                    return;
+                  }
+                }
+              }
+            } catch {
+              // ignore
+            }
+
+            throw new Error(
+              'Failed to fetch: ক্লাউড সার্ভারের সাথে সংযোগ করা সম্ভব হয়নি। আপনার Supabase URL সঠিক কিনা দেখুন অথবা নিচে "লোকাল মোডে ফিরুন" বাটনে চাপ দিন।'
+            );
+          }
+          throw cloudErr;
         }
-        toast.success('Welcome back!');
-        return;
       }
 
       // Local Mode: Verify against stored PBKDF2 hash
@@ -350,7 +406,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setProfile(localAuth.profile);
       toast.success('Welcome back!');
     },
-    [fetchProfile]
+    [fetchProfile, signUp]
   );
 
   // ── Google OAuth ──────────────────────────────────────────────────────────
