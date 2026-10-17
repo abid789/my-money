@@ -44,7 +44,7 @@ function getPasswordStrength(password: string): {
 }
 
 export default function RegisterForm() {
-  const { user, signUp, signInWithGoogle, isConfigured, enterDemoMode } = useAuth();
+  const { user, signUp, signInWithGoogle, isConfigured } = useAuth();
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     fullName: '',
@@ -62,11 +62,6 @@ export default function RegisterForm() {
   if (user) {
     return <Navigate to="/dashboard" replace />;
   }
-
-  const handleEnterDemo = () => {
-    enterDemoMode();
-    navigate('/dashboard');
-  };
 
   const passwordStrength = useMemo(
     () => getPasswordStrength(formData.password),
@@ -100,16 +95,10 @@ export default function RegisterForm() {
       return;
     }
 
-    if (!isConfigured) {
-      setGeneralError(
-        'Supabase is not configured yet. Click "Explore Full App in Demo Mode" above to test immediately.'
-      );
-      return;
-    }
-
     setLoading(true);
     try {
       await signUp(result.data.email, result.data.password, result.data.fullName);
+      navigate('/dashboard', { replace: true });
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : 'Failed to create account. Please try again.';
@@ -122,7 +111,7 @@ export default function RegisterForm() {
   const handleGoogleSignUp = async () => {
     if (!isConfigured) {
       setGeneralError(
-        'Supabase is not configured yet. Click "Explore Full App in Demo Mode" above to test immediately.'
+        'Google sign-up requires Supabase Cloud Database to be configured.'
       );
       return;
     }
@@ -166,22 +155,13 @@ export default function RegisterForm() {
           </h2>
 
           {!isConfigured && (
-            <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50/90 p-4 text-sm dark:border-amber-900/60 dark:bg-amber-950/40">
-              <div className="flex items-start gap-2.5">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                <p className="text-xs text-amber-800 dark:text-amber-300">
-                  Supabase database is currently unconfigured. You can explore all application features immediately in Demo Mode.
+            <div className="mb-4 rounded-xl border border-teal-200 bg-teal-50/80 p-3 text-xs text-teal-800 dark:border-teal-900/60 dark:bg-teal-950/40 dark:text-teal-200">
+              <div className="flex items-center gap-2">
+                <Lock className="h-4 w-4 shrink-0 text-teal-600 dark:text-teal-400" />
+                <p>
+                  Create your master account. Your password will be securely hashed with PBKDF2 encryption on your device.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={handleEnterDemo}
-                className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-teal-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-teal-700 active:scale-[0.99]"
-              >
-                <Sparkles className="h-4 w-4" />
-                Explore Full App in Demo Mode
-                <ArrowRight className="h-3.5 w-3.5" />
-              </button>
             </div>
           )}
 

@@ -8,6 +8,11 @@ import { ToastProvider } from '@/components/ui/Toast';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { AppLayout } from '@/components/layout/AppLayout';
 
+// Auth Pages
+import LoginPage from '@/pages/LoginPage';
+import RegisterPage from '@/pages/RegisterPage';
+import ResetPasswordPage from '@/pages/ResetPasswordPage';
+
 // Feature Pages
 import DashboardPage from '@/pages/DashboardPage';
 import TransactionsPage from '@/pages/TransactionsPage';
@@ -31,12 +36,12 @@ export default function App() {
           <NotificationProvider>
             <ToastProvider />
             <Routes>
-            {/* Direct access: automatically route to Dashboard without login barrier */}
-            <Route path="/login" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/register" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/reset-password" element={<Navigate to="/dashboard" replace />} />
+              {/* Public Authentication Routes */}
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-            {/* Protected Application Routes */}
+              {/* Protected Application Routes */}
             <Route element={<ProtectedRoute />}>
             <Route
               element={

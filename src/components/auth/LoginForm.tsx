@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate, Navigate } from 'react-router-dom';
+import { Link, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { z } from 'zod';
 import {
@@ -28,14 +28,15 @@ const loginSchema = z.object({
 type LoginFormData = z.infer<typeof loginSchema>;
 
 export default function LoginForm() {
-  const { user, signIn, signInWithGoogle, isConfigured, enterDemoMode } = useAuth();
+  const { user, signIn, signInWithGoogle, isConfigured, hasLocalAccount } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [formData, setFormData] = useState<LoginFormData>({
     email: '',
     password: '',
   });
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const [errors, setErrors] = useState<Partial<Record<keyof LoginFormData, string>>>({});
   const [generalError, setGeneralError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -46,11 +47,6 @@ export default function LoginForm() {
   if (user) {
     return <Navigate to="/dashboard" replace />;
   }
-
-  const handleEnterDemo = () => {
-    enterDemoMode();
-    navigate('/dashboard');
-  };
 
   const handleCopyEnv = () => {
     navigator.clipboard.writeText(
@@ -87,17 +83,11 @@ export default function LoginForm() {
       return;
     }
 
-    if (!isConfigured) {
-      setGeneralError(
-        'Supabase is not configured yet. Click "Explore Full App in Demo Mode" above to test immediately, or set up your .env credentials.'
-      );
-      return;
-    }
-
     setLoading(true);
     try {
       await signIn(result.data.email, result.data.password);
-      navigate('/dashboard');
+      const destination = (location.state as any)?.from?.pathname || '/dashboard';
+      navigate(destination, { replace: true });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to sign in. Please try again.';
       setGeneralError(message);
@@ -109,7 +99,7 @@ export default function LoginForm() {
   const handleGoogleSignIn = async () => {
     if (!isConfigured) {
       setGeneralError(
-        'Supabase is not configured yet. Click "Explore Full App in Demo Mode" above to test immediately.'
+        'Google sign-in requires Supabase Cloud Database to be configured.'
       );
       return;
     }
@@ -152,45 +142,53 @@ export default function LoginForm() {
             Welcome back
           </h2>
 
-          {/* Database Unconfigured Status Banner */}
-          {!isConfigured && (
-            <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50/90 p-4 text-sm dark:border-amber-900/60 dark:bg-amber-950/40">
+          {/* Private Security State Banner */}
+          {!isConfigured && !hasLocalAccount && (
+            <div className="mb-6 rounded-xl border border-teal-200 bg-teal-50/90 p-4 text-sm dark:border-teal-900/60 dark:bg-teal-950/40">
               <div className="flex items-start gap-3">
-                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
-                <div className="flex-1 space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <p className="font-semibold text-amber-900 dark:text-amber-200">
-                      Supabase Not Connected
-                    </p>
-                    <span className="rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-800 dark:text-amber-100">
-                      OFFLINE
-                    </span>
-                  </div>
-                  <p className="text-xs text-amber-800/90 dark:text-amber-300 leading-relaxed">
-                    To enable permanent cloud sync, provide your Supabase URL & Key in <code className="rounded bg-amber-200/50 px-1 font-mono text-[11px] dark:bg-amber-900/50">.env</code>.
+                <Lock className="mt-0.5 h-5 w-5 shrink-0 text-teal-600 dark:text-teal-400" />
+                <div className="flex-1 space-y-2">
+                  <p className="font-semibold text-teal-900 dark:text-teal-200">
+                    Welcome! Set Up Your Master Password
                   </p>
-                  <div>
+                  <p className="text-xs text-teal-800/90 dark:text-teal-300 leading-relaxed">
+                    This personal finance tracker is private. Please create your secure master password to protect your records.
+                  </p>
+                  <div className="flex items-center gap-2 pt-1">
+                    <Link
+                      to="/register"
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-teal-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-teal-700"
+                    >
+                      Create Master Account
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </Link>
                     <button
                       type="button"
                       onClick={() => setShowSetupModal(true)}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700 underline hover:text-teal-800 dark:text-teal-400"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-teal-700 underline hover:text-teal-800 dark:text-teal-400"
                     >
                       <Database className="h-3.5 w-3.5" />
-                      View 3-Step Setup Instructions
+                      Connect Cloud DB
                     </button>
                   </div>
                 </div>
               </div>
+            </div>
+          )}
 
-              <div className="mt-3.5 border-t border-amber-200/80 pt-3 dark:border-amber-900/50">
+          {!isConfigured && hasLocalAccount && (
+            <div className="mb-4 rounded-xl border border-sky-100 bg-sky-50/70 p-3 text-xs text-sky-800 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-300">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 font-medium">
+                  <Lock className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />
+                  <span>Secure Master Account Active</span>
+                </div>
                 <button
                   type="button"
-                  onClick={handleEnterDemo}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-teal-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-teal-700 active:scale-[0.99]"
+                  onClick={() => setShowSetupModal(true)}
+                  className="font-semibold text-teal-700 underline hover:text-teal-800 dark:text-teal-400"
                 >
-                  <Sparkles className="h-4 w-4" />
-                  Explore Full App in Demo Mode
-                  <ArrowRight className="h-3.5 w-3.5" />
+                  Connect Supabase Cloud
                 </button>
               </div>
             </div>
@@ -457,19 +455,9 @@ VITE_SUPABASE_ANON_KEY=eyJhbGci...
               <button
                 type="button"
                 onClick={() => setShowSetupModal(false)}
-                className="rounded-lg px-4 py-2 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                className="rounded-lg bg-gray-100 px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
               >
                 Close
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowSetupModal(false);
-                  handleEnterDemo();
-                }}
-                className="rounded-lg bg-teal-600 px-4 py-2 text-xs font-semibold text-white hover:bg-teal-700 shadow-sm"
-              >
-                Try Demo Mode First
               </button>
             </div>
           </div>
