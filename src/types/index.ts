@@ -221,7 +221,12 @@ export type NotificationType =
   | 'balance_updated'
   | 'profile_updated'
   | 'budget_updated'
-  | 'category_updated';
+  | 'category_updated'
+  | 'loan_added'
+  | 'loan_updated'
+  | 'loan_deleted'
+  | 'repayment_added'
+  | 'repayment_deleted';
 
 export interface AppNotification {
   id: string;
@@ -235,4 +240,52 @@ export interface AppNotification {
   formattedTime: string;
   read: boolean;
 }
+
+// ─── Personal Loans (Receivable & Payable) ─────────────────────────────────
+
+export type LoanType = 'receivable' | 'payable'; // receivable = people who owe me, payable = people I owe
+export type LoanStatus = 'unpaid' | 'partially_paid' | 'paid' | 'overdue';
+
+export interface LoanRepayment {
+  id: string;
+  loan_id: string;
+  user_id: string;
+  amount: number;
+  date: string; // YYYY-MM-DD
+  payment_method: string | null;
+  account_id: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LoanRecord {
+  id: string;
+  user_id: string;
+  type: LoanType;
+  person_name: string;
+  phone_number: string | null;
+  original_amount: number;
+  due_date: string | null; // Repayment deadline
+  start_date: string; // Date lent or borrowed
+  interest_rate: number | null;
+  interest_type: 'none' | 'simple' | 'monthly' | null;
+  description: string | null;
+  account_id: string | null; // Source/target account
+  repayments: LoanRepayment[];
+  total_repaid: number;
+  remaining_balance: number;
+  status: LoanStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LoanSummary {
+  totalReceivable: number;
+  totalPayable: number;
+  netLendingBalance: number;
+  overdueReceivable: number;
+  overduePayable: number;
+}
+
 

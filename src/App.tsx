@@ -27,6 +27,7 @@ import CalendarPage from '@/pages/CalendarPage';
 import RecurringPage from '@/pages/RecurringPage';
 import SettingsPage from '@/pages/SettingsPage';
 import DataPage from '@/pages/DataPage';
+import LoansPage from '@/pages/LoansPage';
 
 export default function App() {
   return (
@@ -41,35 +42,39 @@ export default function App() {
               <Route path="/register" element={<Navigate to="/login" replace />} />
               <Route path="/reset-password" element={<Navigate to="/login" replace />} />
 
-              {/* Protected Application Routes */}
-            <Route element={<ProtectedRoute />}>
-            <Route
-              element={
-                <DataProvider>
-                  <AppLayout />
-                </DataProvider>
-              }
-            >
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/transactions" element={<TransactionsPage />} />
-              <Route path="/add-transaction" element={<AddTransactionPage />} />
-              <Route path="/budgets" element={<BudgetsPage />} />
-              <Route path="/categories" element={<CategoriesPage />} />
-              <Route path="/accounts" element={<AccountsPage />} />
-              <Route path="/insights" element={<InsightsPage />} />
-              <Route path="/reports" element={<ReportsPage />} />
-              <Route path="/savings" element={<SavingsPage />} />
-              <Route path="/calendar" element={<CalendarPage />} />
-              <Route path="/recurring" element={<RecurringPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/data" element={<DataPage />} />
-            </Route>
-          </Route>
+              {/* Main Application Layout with DataProvider (Publicly viewable in Demo Mode) */}
+              <Route
+                element={
+                  <DataProvider>
+                    <AppLayout />
+                  </DataProvider>
+                }
+              >
+                {/* Public Demo & Exploration Routes */}
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/transactions" element={<TransactionsPage />} />
+                <Route path="/add-transaction" element={<AddTransactionPage />} />
+                <Route path="/budgets" element={<BudgetsPage />} />
+                <Route path="/categories" element={<CategoriesPage />} />
+                <Route path="/accounts" element={<AccountsPage />} />
+                <Route path="/loans" element={<LoansPage />} />
+                <Route path="/insights" element={<InsightsPage />} />
+                <Route path="/reports" element={<ReportsPage />} />
+                <Route path="/savings" element={<SavingsPage />} />
+                <Route path="/calendar" element={<CalendarPage />} />
+                <Route path="/recurring" element={<RecurringPage />} />
 
-          {/* Catch-all redirect */}
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
+                {/* Owner Protected Routes: Settings & Data Backup */}
+                <Route element={<ProtectedRoute />}>
+                  <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="/data" element={<DataPage />} />
+                </Route>
+              </Route>
+
+              {/* Catch-all redirect */}
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            </Routes>
           </NotificationProvider>
         </AuthProvider>
       </LanguageProvider>

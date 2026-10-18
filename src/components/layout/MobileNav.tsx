@@ -10,6 +10,7 @@ import {
   MoreHorizontal,
   Tag,
   Wallet,
+  HandCoins,
   Lightbulb,
   FileBarChart,
   PiggyBank,
@@ -30,6 +31,7 @@ const mainTabs = [
 const moreItems = [
   { path: '/categories', key: 'nav.categories', icon: Tag },
   { path: '/accounts', key: 'nav.accounts', icon: Wallet },
+  { path: '/loans', key: 'nav.loans', icon: HandCoins },
   { path: '/insights', key: 'nav.insights', icon: Lightbulb },
   { path: '/reports', key: 'nav.reports', icon: FileBarChart },
   { path: '/savings', key: 'nav.savings', icon: PiggyBank },

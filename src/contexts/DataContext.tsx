@@ -17,11 +17,13 @@ import {
   INITIAL_BUDGETS,
   INITIAL_SAVINGS_GOALS,
   INITIAL_RECURRING,
+  INITIAL_LOANS,
   DEMO_SAMPLE_ACCOUNTS,
   DEMO_SAMPLE_TRANSACTIONS,
   DEMO_SAMPLE_BUDGETS,
   DEMO_SAMPLE_SAVINGS_GOALS,
   DEMO_SAMPLE_RECURRING,
+  DEMO_SAMPLE_LOANS,
 } from '@/lib/mockData';
 import type {
   Account,
@@ -32,6 +34,10 @@ import type {
   SavingsContribution,
   RecurringTransaction,
   FinancialSummary,
+  LoanRecord,
+  LoanRepayment,
+  LoanSummary,
+  LoanStatus,
 } from '@/types';
 import {
   calculateTotalIncome,
@@ -141,6 +147,19 @@ interface DataContextValue {
   deleteRecurring: (id: string) => Promise<void>;
   markRecurringPaid: (id: string) => Promise<void>;
 
+  // Demo Mode
+  isDemoMode: boolean;
+  resetDemoData: () => Promise<void>;
+
+  // Personal Loans & Lending CRUD
+  loans: LoanRecord[];
+  loanSummary: LoanSummary;
+  addLoan: (loan: Partial<LoanRecord>) => Promise<void>;
+  updateLoan: (id: string, loan: Partial<LoanRecord>) => Promise<void>;
+  deleteLoan: (id: string) => Promise<void>;
+  addLoanRepayment: (loanId: string, repayment: Partial<LoanRepayment>) => Promise<void>;
+  deleteLoanRepayment: (loanId: string, repaymentId: string) => Promise<void>;
+
   // Refresh & Utilities
   refreshData: () => Promise<void>;
   resetToZero: () => Promise<void>;
@@ -158,6 +177,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const { addNotification } = useNotifications();
 
+  // Public Demo Mode vs Authenticated Private Mode
+  const isDemoMode = !user;
+  const storagePrefix = isDemoMode ? 'my-money-demo-' : 'my-money-';
+
   // Data state
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -165,10 +188,35 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [savingsGoals, setSavingsGoals] = useState<SavingsGoal[]>([]);
   const [recurringTransactions, setRecurringTransactions] = useState<RecurringTransaction[]>([]);
+  const [loans, setLoans] = useState<LoanRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('saved');
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+
+  // Storage partition helpers
+  const getLocal = useCallback(
+    <T,>(key: string, initial: T): T => {
+      try {
+        const item = localStorage.getItem(`${storagePrefix}${key}`);
+        return item !== null ? JSON.parse(item) : initial;
+      } catch {
+        return initial;
+      }
+    },
+    [storagePrefix]
+  );
+
+  const setLocal = useCallback(
+    <T,>(key: string, data: T) => {
+      try {
+        localStorage.setItem(`${storagePrefix}${key}`, JSON.stringify(data));
+      } catch {
+        // ignore
+      }
+    },
+    [storagePrefix]
+  );
 
   // Period and Date Range selection
   const now = new Date();
@@ -310,23 +358,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setRecurringTransactions((data as RecurringTransaction[]) || []);
   }, []);
 
-function getLocal<T>(key: string, initial: T): T {
-  try {
-    const item = localStorage.getItem(`my-money-${key}`);
-    return item ? JSON.parse(item) : initial;
-  } catch {
-    return initial;
-  }
-}
-
-function setLocal<T>(key: string, data: T) {
-  try {
-    localStorage.setItem(`my-money-${key}`, JSON.stringify(data));
-  } catch {
-    // ignore
-  }
-}
-
   // ═══════════════════════════════════════════════════════════════════════
   // BACKGROUND CLOUD SYNCHRONIZATION
   // ═══════════════════════════════════════════════════════════════════════
@@ -339,7 +370,14 @@ function setLocal<T>(key: string, data: T) {
       budgets?: Budget[];
       savingsGoals?: SavingsGoal[];
       recurringTransactions?: RecurringTransaction[];
+      loans?: LoanRecord[];
     }) => {
+      // In Public Demo Mode, never query or push to private cloud database
+      if (isDemoMode) {
+        setSyncStatus('saved');
+        return;
+      }
+
       if (typeof navigator !== 'undefined' && !navigator.onLine) {
         setSyncStatus('offline');
         return;
@@ -353,6 +391,7 @@ function setLocal<T>(key: string, data: T) {
         const bdgs = overrideData?.budgets || getLocal<Budget[]>('budgets', INITIAL_BUDGETS);
         const sgs = overrideData?.savingsGoals || getLocal<SavingsGoal[]>('savings', INITIAL_SAVINGS_GOALS);
         const recs = overrideData?.recurringTransactions || getLocal<RecurringTransaction[]>('recurring', INITIAL_RECURRING);
+        const loanList = overrideData?.loans || getLocal<LoanRecord[]>('loans', INITIAL_LOANS);
 
         const token = localStorage.getItem('my-money-session-token') || 'master-session';
 
@@ -370,6 +409,7 @@ function setLocal<T>(key: string, data: T) {
               budgets: bdgs,
               savingsGoals: sgs,
               recurringTransactions: recs,
+              loans: loanList,
               preferences: {
                 currency: 'BDT',
                 updatedAt: new Date().toISOString(),
@@ -409,27 +449,44 @@ function setLocal<T>(key: string, data: T) {
   // ═══════════════════════════════════════════════════════════════════════
 
   const refreshData = useCallback(async () => {
-    if (!user) return;
     setError(null);
 
-    // Auto-migrate to zero start: clear out old demo dummy transactions & reset to 0
-    const ZERO_INITIALIZED_KEY = 'my-money-zero-v3';
-    const hasAutoReset = localStorage.getItem(ZERO_INITIALIZED_KEY) === 'true';
-    if (!hasAutoReset) {
-      setLocal('transactions', []);
-      setLocal('accounts', INITIAL_ACCOUNTS);
-      setLocal('budgets', []);
-      setLocal('savings', []);
-      setLocal('recurring', []);
-      localStorage.setItem(ZERO_INITIALIZED_KEY, 'true');
+    // If in demo mode, ensure demo sample dataset is populated in demo storage
+    if (isDemoMode) {
+      const demoInitKey = 'my-money-demo-v1-initialized';
+      const isDemoInit = localStorage.getItem(demoInitKey) === 'true';
+      if (!isDemoInit) {
+        localStorage.setItem('my-money-demo-accounts', JSON.stringify(DEMO_SAMPLE_ACCOUNTS));
+        localStorage.setItem('my-money-demo-categories', JSON.stringify(INITIAL_CATEGORIES));
+        localStorage.setItem('my-money-demo-transactions', JSON.stringify(DEMO_SAMPLE_TRANSACTIONS));
+        localStorage.setItem('my-money-demo-budgets', JSON.stringify(DEMO_SAMPLE_BUDGETS));
+        localStorage.setItem('my-money-demo-savings', JSON.stringify(DEMO_SAMPLE_SAVINGS_GOALS));
+        localStorage.setItem('my-money-demo-recurring', JSON.stringify(DEMO_SAMPLE_RECURRING));
+        localStorage.setItem('my-money-demo-loans', JSON.stringify(DEMO_SAMPLE_LOANS));
+        localStorage.setItem(demoInitKey, 'true');
+      }
+    } else {
+      // Auto-migrate to clean zero start for the authenticated owner
+      const ZERO_INITIALIZED_KEY = 'my-money-zero-v3';
+      const hasAutoReset = localStorage.getItem(ZERO_INITIALIZED_KEY) === 'true';
+      if (!hasAutoReset) {
+        setLocal('transactions', []);
+        setLocal('accounts', INITIAL_ACCOUNTS);
+        setLocal('budgets', []);
+        setLocal('savings', []);
+        setLocal('recurring', []);
+        setLocal('loans', INITIAL_LOANS);
+        localStorage.setItem(ZERO_INITIALIZED_KEY, 'true');
+      }
     }
 
-    let accs = getLocal<Account[]>('accounts', INITIAL_ACCOUNTS);
+    let accs = getLocal<Account[]>('accounts', isDemoMode ? DEMO_SAMPLE_ACCOUNTS : INITIAL_ACCOUNTS);
     let cats = getLocal<Category[]>('categories', INITIAL_CATEGORIES);
-    let txns = getLocal<Transaction[]>('transactions', INITIAL_TRANSACTIONS);
-    let bdgs = getLocal<Budget[]>('budgets', INITIAL_BUDGETS);
-    let sgs = getLocal<SavingsGoal[]>('savings', INITIAL_SAVINGS_GOALS);
-    let recs = getLocal<RecurringTransaction[]>('recurring', INITIAL_RECURRING);
+    let txns = getLocal<Transaction[]>('transactions', isDemoMode ? DEMO_SAMPLE_TRANSACTIONS : INITIAL_TRANSACTIONS);
+    let bdgs = getLocal<Budget[]>('budgets', isDemoMode ? DEMO_SAMPLE_BUDGETS : INITIAL_BUDGETS);
+    let sgs = getLocal<SavingsGoal[]>('savings', isDemoMode ? DEMO_SAMPLE_SAVINGS_GOALS : INITIAL_SAVINGS_GOALS);
+    let recs = getLocal<RecurringTransaction[]>('recurring', isDemoMode ? DEMO_SAMPLE_RECURRING : INITIAL_RECURRING);
+    let loanList = getLocal<LoanRecord[]>('loans', isDemoMode ? DEMO_SAMPLE_LOANS : INITIAL_LOANS);
 
     const hydrateAndSetState = (
       a: Account[],
@@ -437,7 +494,8 @@ function setLocal<T>(key: string, data: T) {
       t: Transaction[],
       b: Budget[],
       s: SavingsGoal[],
-      r: RecurringTransaction[]
+      r: RecurringTransaction[],
+      l: LoanRecord[]
     ) => {
       const catMap = new Map(c.map((cat) => [cat.id, cat]));
       const accMap = new Map(a.map((acc) => [acc.id, acc]));
@@ -448,6 +506,28 @@ function setLocal<T>(key: string, data: T) {
         account: txn.account_id ? accMap.get(txn.account_id) : undefined,
         to_account: txn.to_account_id ? accMap.get(txn.to_account_id) : undefined,
       }));
+
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      const hydratedLoans = l.map((loan) => {
+        const reps = loan.repayments || [];
+        const totalRepaid = reps.reduce((sum, rep) => sum + Number(rep.amount || 0), 0);
+        const remaining = Math.max(0, Number(loan.original_amount || 0) - totalRepaid);
+        const dueDate = loan.due_date ? loan.due_date.split('T')[0] : null;
+        let status: LoanStatus = 'unpaid';
+        if (remaining <= 0) {
+          status = 'paid';
+        } else if (dueDate && dueDate < todayStr) {
+          status = 'overdue';
+        } else if (totalRepaid > 0) {
+          status = 'partially_paid';
+        }
+        return {
+          ...loan,
+          total_repaid: totalRepaid,
+          remaining_balance: remaining,
+          status,
+        };
+      });
 
       setAccounts(a);
       setCategories(c);
@@ -466,12 +546,20 @@ function setLocal<T>(key: string, data: T) {
           account: accMap.get(rec.account_id),
         }))
       );
+      setLoans(hydratedLoans);
     };
 
-    // 1. Instantly display local cache
-    hydrateAndSetState(accs, cats, txns, bdgs, sgs, recs);
+    // 1. Instantly display local/demo cache
+    hydrateAndSetState(accs, cats, txns, bdgs, sgs, recs, loanList);
 
-    // 2. Background check with cloud API
+    // In demo mode, bypass all cloud communication
+    if (isDemoMode) {
+      setSyncStatus('saved');
+      setLastSyncedAt(new Date());
+      return;
+    }
+
+    // 2. Background check with cloud API (Authenticated owner only)
     try {
       if (typeof navigator !== 'undefined' && !navigator.onLine) {
         setSyncStatus('offline');
@@ -497,6 +585,7 @@ function setLocal<T>(key: string, data: T) {
           const cloudBdgs = payload.data.budgets || [];
           const cloudSgs = payload.data.savingsGoals || [];
           const cloudRecs = payload.data.recurringTransactions || [];
+          const cloudLoans = payload.data.loans || [];
 
           if (cloudTxns.length >= txns.length) {
             accs = cloudAccs.length ? cloudAccs : accs;
@@ -505,6 +594,7 @@ function setLocal<T>(key: string, data: T) {
             bdgs = cloudBdgs.length ? cloudBdgs : bdgs;
             sgs = cloudSgs.length ? cloudSgs : sgs;
             recs = cloudRecs.length ? cloudRecs : recs;
+            loanList = cloudLoans.length ? cloudLoans : loanList;
 
             setLocal('accounts', accs);
             setLocal('categories', cats);
@@ -512,8 +602,9 @@ function setLocal<T>(key: string, data: T) {
             setLocal('budgets', bdgs);
             setLocal('savings', sgs);
             setLocal('recurring', recs);
+            setLocal('loans', loanList);
 
-            hydrateAndSetState(accs, cats, txns, bdgs, sgs, recs);
+            hydrateAndSetState(accs, cats, txns, bdgs, sgs, recs, loanList);
           }
         } else if (txns.length > 0 || accs.some((a) => Number(a.current_balance) > 0)) {
           // Push local data to initialize cloud
@@ -524,6 +615,7 @@ function setLocal<T>(key: string, data: T) {
             budgets: bdgs,
             savingsGoals: sgs,
             recurringTransactions: recs,
+            loans: loanList,
           });
         }
         setSyncStatus('saved');
@@ -540,23 +632,12 @@ function setLocal<T>(key: string, data: T) {
         setLastSyncedAt(new Date());
       }
     }
-  }, [user, syncWithCloud]);
+  }, [user, isDemoMode, getLocal, setLocal, syncWithCloud]);
 
-  // Fetch all data when user is authenticated
+  // Fetch data on load or auth change (Demo Mode for visitors, Private Mode for owner)
   useEffect(() => {
-    if (user) {
-      setLoading(true);
-      refreshData().finally(() => setLoading(false));
-    } else {
-      // Clear all data on logout
-      setAccounts([]);
-      setCategories([]);
-      setTransactions([]);
-      setBudgets([]);
-      setSavingsGoals([]);
-      setRecurringTransactions([]);
-      setLoading(false);
-    }
+    setLoading(true);
+    refreshData().finally(() => setLoading(false));
   }, [user, refreshData]);
 
   // Multi-tab broadcast helper
@@ -651,6 +732,7 @@ function setLocal<T>(key: string, data: T) {
     async (accountId: string) => {
       const txns = getLocal<Transaction[]>('transactions', INITIAL_TRANSACTIONS);
       const accs = getLocal<Account[]>('accounts', INITIAL_ACCOUNTS);
+      const loanList = getLocal<LoanRecord[]>('loans', isDemoMode ? DEMO_SAMPLE_LOANS : INITIAL_LOANS);
       const account = accs.find((a) => a.id === accountId);
       if (!account) return;
 
@@ -665,11 +747,38 @@ function setLocal<T>(key: string, data: T) {
           balance += amount;
         }
       }
+
+      // Adjust for personal loans linked to this account
+      for (const l of loanList) {
+        if (l.account_id === accountId) {
+          if (l.type === 'receivable') {
+            // Money lent out of this account (cash outflow)
+            balance -= Number(l.original_amount || 0);
+          } else if (l.type === 'payable') {
+            // Money borrowed into this account (cash inflow)
+            balance += Number(l.original_amount || 0);
+          }
+        }
+        // Loan repayments
+        for (const rep of l.repayments || []) {
+          const repAccountId = rep.account_id || l.account_id;
+          if (repAccountId === accountId) {
+            if (l.type === 'receivable') {
+              // Money repaid to us (cash inflow)
+              balance += Number(rep.amount || 0);
+            } else if (l.type === 'payable') {
+              // Money repaid by us (cash outflow)
+              balance -= Number(rep.amount || 0);
+            }
+          }
+        }
+      }
+
       account.current_balance = balance;
       setLocal('accounts', accs);
       setAccounts([...accs]);
     },
-    []
+    [isDemoMode, getLocal, setLocal]
   );
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -678,12 +787,11 @@ function setLocal<T>(key: string, data: T) {
 
   const addTransaction = useCallback(
     async (txn: Partial<Transaction>) => {
-      if (!user) throw new Error('Not authenticated');
-
+      const currentUserId = user?.id || 'demo-user-id';
       const txns = getLocal<Transaction[]>('transactions', INITIAL_TRANSACTIONS);
       const newTxn: Transaction = {
         id: `txn-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        user_id: user.id,
+        user_id: currentUserId,
         type: txn.type || 'expense',
         amount: Number(txn.amount),
         date: txn.date || new Date().toISOString().slice(0, 10),
@@ -711,7 +819,7 @@ function setLocal<T>(key: string, data: T) {
 
       await refreshData();
       broadcastDataChange();
-      syncWithCloud();
+      if (!isDemoMode) syncWithCloud();
 
       const cat = categories.find((c) => c.id === txn.category_id);
       const acc = accounts.find((a) => a.id === txn.account_id);
@@ -726,13 +834,11 @@ function setLocal<T>(key: string, data: T) {
 
       toast.success('Transaction added');
     },
-    [user, categories, accounts, recalculateAccountBalance, refreshData, broadcastDataChange, syncWithCloud, addNotification]
+    [user, isDemoMode, categories, accounts, getLocal, setLocal, recalculateAccountBalance, refreshData, broadcastDataChange, syncWithCloud, addNotification]
   );
 
   const updateTransaction = useCallback(
     async (id: string, txn: Partial<Transaction>) => {
-      if (!user) throw new Error('Not authenticated');
-
       const txns = getLocal<Transaction[]>('transactions', INITIAL_TRANSACTIONS);
       const idx = txns.findIndex((t) => t.id === id);
       if (idx === -1) return;
@@ -748,7 +854,7 @@ function setLocal<T>(key: string, data: T) {
 
       await refreshData();
       broadcastDataChange();
-      syncWithCloud();
+      if (!isDemoMode) syncWithCloud();
 
       const cat = categories.find((c) => c.id === (txn.category_id || old.category_id));
       const acc = accounts.find((a) => a.id === (txn.account_id || old.account_id));
@@ -763,13 +869,11 @@ function setLocal<T>(key: string, data: T) {
 
       toast.success('Transaction updated');
     },
-    [user, categories, accounts, recalculateAccountBalance, refreshData, broadcastDataChange, syncWithCloud, addNotification]
+    [isDemoMode, categories, accounts, getLocal, setLocal, recalculateAccountBalance, refreshData, broadcastDataChange, syncWithCloud, addNotification]
   );
 
   const restoreTransaction = useCallback(
     async (txn: Transaction) => {
-      if (!user) throw new Error('Not authenticated');
-
       const txns = getLocal<Transaction[]>('transactions', INITIAL_TRANSACTIONS);
       if (txns.some((t) => t.id === txn.id)) {
         return;
@@ -787,7 +891,7 @@ function setLocal<T>(key: string, data: T) {
 
       await refreshData();
       broadcastDataChange();
-      syncWithCloud();
+      if (!isDemoMode) syncWithCloud();
 
       addNotification({
         type: txn.type === 'income' ? 'income_added' : txn.type === 'transfer' ? 'transfer_added' : 'expense_added',
@@ -800,13 +904,11 @@ function setLocal<T>(key: string, data: T) {
 
       toast.success('লেনদেন সফলভাবে পুনরুদ্ধার করা হয়েছে / Restored');
     },
-    [user, recalculateAccountBalance, refreshData, broadcastDataChange, syncWithCloud, addNotification]
+    [isDemoMode, getLocal, setLocal, recalculateAccountBalance, refreshData, broadcastDataChange, syncWithCloud, addNotification]
   );
 
   const deleteTransaction = useCallback(
     async (id: string) => {
-      if (!user) throw new Error('Not authenticated');
-
       const txns = getLocal<Transaction[]>('transactions', INITIAL_TRANSACTIONS);
       const oldTxn = txns.find((t) => t.id === id);
       if (!oldTxn) return;
@@ -819,7 +921,7 @@ function setLocal<T>(key: string, data: T) {
 
       await refreshData();
       broadcastDataChange();
-      syncWithCloud();
+      if (!isDemoMode) syncWithCloud();
 
       addNotification({
         type: oldTxn.type === 'income' ? 'income_deleted' : 'expense_deleted',
@@ -877,12 +979,11 @@ function setLocal<T>(key: string, data: T) {
 
   const addAccount = useCallback(
     async (account: Partial<Account>) => {
-      if (!user) throw new Error('Not authenticated');
-
+      const currentUserId = user?.id || 'demo-user-id';
       const accs = getLocal<Account[]>('accounts', INITIAL_ACCOUNTS);
       const newAcc: Account = {
         id: `acc-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        user_id: user.id,
+        user_id: currentUserId,
         name: account.name || 'Account',
         type: account.type || 'cash',
         opening_balance: Number(account.opening_balance) || 0,
@@ -899,7 +1000,7 @@ function setLocal<T>(key: string, data: T) {
 
       await refreshData();
       broadcastDataChange();
-      syncWithCloud();
+      if (!isDemoMode) syncWithCloud();
 
       addNotification({
         type: 'balance_updated',
@@ -910,13 +1011,11 @@ function setLocal<T>(key: string, data: T) {
       });
       toast.success('Account added');
     },
-    [user, refreshData, broadcastDataChange, syncWithCloud, addNotification]
+    [user, isDemoMode, getLocal, setLocal, refreshData, broadcastDataChange, syncWithCloud, addNotification]
   );
 
   const updateAccount = useCallback(
     async (id: string, account: Partial<Account>) => {
-      if (!user) throw new Error('Not authenticated');
-
       const accs = getLocal<Account[]>('accounts', INITIAL_ACCOUNTS);
       const idx = accs.findIndex((a) => a.id === id);
       if (idx !== -1) {
@@ -926,7 +1025,7 @@ function setLocal<T>(key: string, data: T) {
 
       await refreshData();
       broadcastDataChange();
-      syncWithCloud();
+      if (!isDemoMode) syncWithCloud();
 
       addNotification({
         type: 'balance_updated',
@@ -937,20 +1036,18 @@ function setLocal<T>(key: string, data: T) {
       });
       toast.success('Account updated');
     },
-    [user, refreshData, broadcastDataChange, syncWithCloud, addNotification]
+    [isDemoMode, getLocal, setLocal, refreshData, broadcastDataChange, syncWithCloud, addNotification]
   );
 
   const deleteAccount = useCallback(
     async (id: string) => {
-      if (!user) throw new Error('Not authenticated');
-
       const accs = getLocal<Account[]>('accounts', INITIAL_ACCOUNTS);
       const old = accs.find((a) => a.id === id);
       setLocal('accounts', accs.filter((a) => a.id !== id));
 
       await refreshData();
       broadcastDataChange();
-      syncWithCloud();
+      if (!isDemoMode) syncWithCloud();
 
       if (old) {
         addNotification({
@@ -962,7 +1059,7 @@ function setLocal<T>(key: string, data: T) {
       }
       toast.success('Account deleted');
     },
-    [user, refreshData, broadcastDataChange, syncWithCloud, addNotification]
+    [isDemoMode, getLocal, setLocal, refreshData, broadcastDataChange, syncWithCloud, addNotification]
   );
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -971,12 +1068,11 @@ function setLocal<T>(key: string, data: T) {
 
   const addCategory = useCallback(
     async (category: Partial<Category>) => {
-      if (!user) throw new Error('Not authenticated');
-
+      const currentUserId = user?.id || 'demo-user-id';
       const cats = getLocal<Category[]>('categories', INITIAL_CATEGORIES);
       const newCat: Category = {
         id: `cat-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        user_id: user.id,
+        user_id: currentUserId,
         name: category.name || 'Category',
         type: category.type || 'expense',
         icon: category.icon || 'Tag',
@@ -991,17 +1087,15 @@ function setLocal<T>(key: string, data: T) {
 
       await refreshData();
       broadcastDataChange();
-      syncWithCloud();
+      if (!isDemoMode) syncWithCloud();
 
       toast.success('Category added');
     },
-    [user, refreshData, broadcastDataChange, syncWithCloud]
+    [user, isDemoMode, getLocal, setLocal, refreshData, broadcastDataChange, syncWithCloud]
   );
 
   const updateCategory = useCallback(
     async (id: string, category: Partial<Category>) => {
-      if (!user) throw new Error('Not authenticated');
-
       const cats = getLocal<Category[]>('categories', INITIAL_CATEGORIES);
       const idx = cats.findIndex((c) => c.id === id);
       if (idx !== -1) {
@@ -1011,27 +1105,25 @@ function setLocal<T>(key: string, data: T) {
 
       await refreshData();
       broadcastDataChange();
-      syncWithCloud();
+      if (!isDemoMode) syncWithCloud();
 
       toast.success('Category updated');
     },
-    [user, refreshData, broadcastDataChange, syncWithCloud]
+    [isDemoMode, getLocal, setLocal, refreshData, broadcastDataChange, syncWithCloud]
   );
 
   const deleteCategory = useCallback(
     async (id: string) => {
-      if (!user) throw new Error('Not authenticated');
-
       const cats = getLocal<Category[]>('categories', INITIAL_CATEGORIES);
       setLocal('categories', cats.filter((c) => c.id !== id));
 
       await refreshData();
       broadcastDataChange();
-      syncWithCloud();
+      if (!isDemoMode) syncWithCloud();
 
       toast.success('Category deleted');
     },
-    [user, refreshData, broadcastDataChange, syncWithCloud]
+    [isDemoMode, getLocal, setLocal, refreshData, broadcastDataChange, syncWithCloud]
   );
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -1040,12 +1132,11 @@ function setLocal<T>(key: string, data: T) {
 
   const addBudget = useCallback(
     async (budget: Partial<Budget>) => {
-      if (!user) throw new Error('Not authenticated');
-
+      const currentUserId = user?.id || 'demo-user-id';
       const bdgs = getLocal<Budget[]>('budgets', INITIAL_BUDGETS);
       const newBdg: Budget = {
         id: `bdg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        user_id: user.id,
+        user_id: currentUserId,
         name: budget.name || 'Budget',
         amount: Number(budget.amount) || 0,
         spent: 0,
@@ -1066,17 +1157,15 @@ function setLocal<T>(key: string, data: T) {
 
       await refreshData();
       broadcastDataChange();
-      syncWithCloud();
+      if (!isDemoMode) syncWithCloud();
 
       toast.success('Budget created');
     },
-    [user, refreshData, broadcastDataChange, syncWithCloud]
+    [user, isDemoMode, getLocal, setLocal, refreshData, broadcastDataChange, syncWithCloud]
   );
 
   const updateBudget = useCallback(
     async (id: string, budget: Partial<Budget>) => {
-      if (!user) throw new Error('Not authenticated');
-
       const bdgs = getLocal<Budget[]>('budgets', INITIAL_BUDGETS);
       const idx = bdgs.findIndex((b) => b.id === id);
       if (idx !== -1) {
@@ -1086,27 +1175,25 @@ function setLocal<T>(key: string, data: T) {
 
       await refreshData();
       broadcastDataChange();
-      syncWithCloud();
+      if (!isDemoMode) syncWithCloud();
 
       toast.success('Budget updated');
     },
-    [user, refreshData, broadcastDataChange, syncWithCloud]
+    [isDemoMode, getLocal, setLocal, refreshData, broadcastDataChange, syncWithCloud]
   );
 
   const deleteBudget = useCallback(
     async (id: string) => {
-      if (!user) throw new Error('Not authenticated');
-
       const bdgs = getLocal<Budget[]>('budgets', INITIAL_BUDGETS);
       setLocal('budgets', bdgs.filter((b) => b.id !== id));
 
       await refreshData();
       broadcastDataChange();
-      syncWithCloud();
+      if (!isDemoMode) syncWithCloud();
 
       toast.success('Budget deleted');
     },
-    [user, refreshData, broadcastDataChange, syncWithCloud]
+    [isDemoMode, getLocal, setLocal, refreshData, broadcastDataChange, syncWithCloud]
   );
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -1115,12 +1202,11 @@ function setLocal<T>(key: string, data: T) {
 
   const addSavingsGoal = useCallback(
     async (goal: Partial<SavingsGoal>) => {
-      if (!user) throw new Error('Not authenticated');
-
+      const currentUserId = user?.id || 'demo-user-id';
       const sgs = getLocal<SavingsGoal[]>('savings', INITIAL_SAVINGS_GOALS);
       const newGoal: SavingsGoal = {
         id: `sg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        user_id: user.id,
+        user_id: currentUserId,
         name: goal.name || 'Savings Goal',
         target_amount: Number(goal.target_amount) || 0,
         current_amount: Number(goal.current_amount) || 0,
@@ -1137,17 +1223,15 @@ function setLocal<T>(key: string, data: T) {
 
       await refreshData();
       broadcastDataChange();
-      syncWithCloud();
+      if (!isDemoMode) syncWithCloud();
 
       toast.success('Savings goal created');
     },
-    [user, refreshData, broadcastDataChange, syncWithCloud]
+    [user, isDemoMode, getLocal, setLocal, refreshData, broadcastDataChange, syncWithCloud]
   );
 
   const updateSavingsGoal = useCallback(
     async (id: string, goal: Partial<SavingsGoal>) => {
-      if (!user) throw new Error('Not authenticated');
-
       const sgs = getLocal<SavingsGoal[]>('savings', INITIAL_SAVINGS_GOALS);
       const idx = sgs.findIndex((s) => s.id === id);
       if (idx !== -1) {
@@ -1157,33 +1241,29 @@ function setLocal<T>(key: string, data: T) {
 
       await refreshData();
       broadcastDataChange();
-      syncWithCloud();
+      if (!isDemoMode) syncWithCloud();
 
       toast.success('Savings goal updated');
     },
-    [user, refreshData, broadcastDataChange, syncWithCloud]
+    [isDemoMode, getLocal, setLocal, refreshData, broadcastDataChange, syncWithCloud]
   );
 
   const deleteSavingsGoal = useCallback(
     async (id: string) => {
-      if (!user) throw new Error('Not authenticated');
-
       const sgs = getLocal<SavingsGoal[]>('savings', INITIAL_SAVINGS_GOALS);
       setLocal('savings', sgs.filter((s) => s.id !== id));
 
       await refreshData();
       broadcastDataChange();
-      syncWithCloud();
+      if (!isDemoMode) syncWithCloud();
 
       toast.success('Savings goal deleted');
     },
-    [user, refreshData, broadcastDataChange, syncWithCloud]
+    [isDemoMode, getLocal, setLocal, refreshData, broadcastDataChange, syncWithCloud]
   );
 
   const addContribution = useCallback(
     async (contribution: Partial<SavingsContribution>) => {
-      if (!user) throw new Error('Not authenticated');
-
       const sgs = getLocal<SavingsGoal[]>('savings', INITIAL_SAVINGS_GOALS);
       const goal = sgs.find((g) => g.id === contribution.goal_id);
       if (goal) {
@@ -1198,13 +1278,13 @@ function setLocal<T>(key: string, data: T) {
 
       await refreshData();
       broadcastDataChange();
-      syncWithCloud();
+      if (!isDemoMode) syncWithCloud();
 
       toast.success(
         contribution.type === 'withdrawal' ? 'Withdrawal recorded' : 'Contribution added'
       );
     },
-    [user, refreshData, broadcastDataChange, syncWithCloud]
+    [isDemoMode, getLocal, setLocal, refreshData, broadcastDataChange, syncWithCloud]
   );
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -1213,12 +1293,11 @@ function setLocal<T>(key: string, data: T) {
 
   const addRecurring = useCallback(
     async (recurring: Partial<RecurringTransaction>) => {
-      if (!user) throw new Error('Not authenticated');
-
+      const currentUserId = user?.id || 'demo-user-id';
       const recs = getLocal<RecurringTransaction[]>('recurring', INITIAL_RECURRING);
       const newRec: RecurringTransaction = {
         id: `rec-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        user_id: user.id,
+        user_id: currentUserId,
         type: recurring.type || 'expense',
         amount: Number(recurring.amount) || 0,
         description: recurring.description || '',
@@ -1237,17 +1316,15 @@ function setLocal<T>(key: string, data: T) {
 
       await refreshData();
       broadcastDataChange();
-      syncWithCloud();
+      if (!isDemoMode) syncWithCloud();
 
       toast.success('Recurring transaction created');
     },
-    [user, refreshData, broadcastDataChange, syncWithCloud]
+    [user, isDemoMode, getLocal, setLocal, refreshData, broadcastDataChange, syncWithCloud]
   );
 
   const updateRecurring = useCallback(
     async (id: string, recurring: Partial<RecurringTransaction>) => {
-      if (!user) throw new Error('Not authenticated');
-
       const recs = getLocal<RecurringTransaction[]>('recurring', INITIAL_RECURRING);
       const idx = recs.findIndex((r) => r.id === id);
       if (idx !== -1) {
@@ -1257,33 +1334,29 @@ function setLocal<T>(key: string, data: T) {
 
       await refreshData();
       broadcastDataChange();
-      syncWithCloud();
+      if (!isDemoMode) syncWithCloud();
 
       toast.success('Recurring transaction updated');
     },
-    [user, refreshData, broadcastDataChange, syncWithCloud]
+    [isDemoMode, getLocal, setLocal, refreshData, broadcastDataChange, syncWithCloud]
   );
 
   const deleteRecurring = useCallback(
     async (id: string) => {
-      if (!user) throw new Error('Not authenticated');
-
       const recs = getLocal<RecurringTransaction[]>('recurring', INITIAL_RECURRING);
       setLocal('recurring', recs.filter((r) => r.id !== id));
 
       await refreshData();
       broadcastDataChange();
-      syncWithCloud();
+      if (!isDemoMode) syncWithCloud();
 
       toast.success('Recurring transaction deleted');
     },
-    [user, refreshData, broadcastDataChange, syncWithCloud]
+    [isDemoMode, getLocal, setLocal, refreshData, broadcastDataChange, syncWithCloud]
   );
 
   const markRecurringPaid = useCallback(
     async (id: string) => {
-      if (!user) throw new Error('Not authenticated');
-
       const recs = getLocal<RecurringTransaction[]>('recurring', INITIAL_RECURRING);
       const recurring = recs.find((r) => r.id === id);
       if (!recurring) throw new Error('Recurring transaction not found');
@@ -1334,11 +1407,380 @@ function setLocal<T>(key: string, data: T) {
 
       await refreshData();
       broadcastDataChange();
-      syncWithCloud();
+      if (!isDemoMode) syncWithCloud();
 
       toast.success('Recurring transaction marked as paid');
     },
-    [user, addTransaction, refreshData, broadcastDataChange, syncWithCloud]
+    [isDemoMode, addTransaction, getLocal, setLocal, refreshData, broadcastDataChange, syncWithCloud]
+  );
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // DEMO RESET & PERSONAL LOANS (RECEIVABLE & PAYABLE) CRUD
+  // ═══════════════════════════════════════════════════════════════════════
+
+  const resetDemoData = useCallback(async () => {
+    localStorage.setItem('my-money-demo-accounts', JSON.stringify(DEMO_SAMPLE_ACCOUNTS));
+    localStorage.setItem('my-money-demo-categories', JSON.stringify(INITIAL_CATEGORIES));
+    localStorage.setItem('my-money-demo-transactions', JSON.stringify(DEMO_SAMPLE_TRANSACTIONS));
+    localStorage.setItem('my-money-demo-budgets', JSON.stringify(DEMO_SAMPLE_BUDGETS));
+    localStorage.setItem('my-money-demo-savings', JSON.stringify(DEMO_SAMPLE_SAVINGS_GOALS));
+    localStorage.setItem('my-money-demo-recurring', JSON.stringify(DEMO_SAMPLE_RECURRING));
+    localStorage.setItem('my-money-demo-loans', JSON.stringify(DEMO_SAMPLE_LOANS));
+    localStorage.setItem('my-money-demo-v1-initialized', 'true');
+    await refreshData();
+    toast.success('ডেমো ডেটা সফলভাবে রিসেট করা হয়েছে / Demo data reset successfully');
+  }, [refreshData]);
+
+  // 5 Dashboard KPI Summary Cards for Personal Lending
+  const loanSummary = useMemo<LoanSummary>(() => {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    let totalReceivable = 0;
+    let totalPayable = 0;
+    let overdueReceivable = 0;
+    let overduePayable = 0;
+
+    for (const loan of loans) {
+      const remaining = Number(loan.remaining_balance || 0);
+      if (remaining <= 0) continue; // Fully paid loan
+
+      const dueDate = loan.due_date ? loan.due_date.split('T')[0] : null;
+      const isOverdue = dueDate ? dueDate < today : false;
+
+      if (loan.type === 'receivable') {
+        totalReceivable += remaining;
+        if (isOverdue) overdueReceivable += remaining;
+      } else if (loan.type === 'payable') {
+        totalPayable += remaining;
+        if (isOverdue) overduePayable += remaining;
+      }
+    }
+
+    return {
+      totalReceivable,
+      totalPayable,
+      netLendingBalance: totalReceivable - totalPayable,
+      overdueReceivable,
+      overduePayable,
+    };
+  }, [loans]);
+
+  const addLoan = useCallback(
+    async (loan: Partial<LoanRecord>) => {
+      const currentUserId = user?.id || 'demo-user-id';
+      const originalAmount = Number(loan.original_amount) || 0;
+      if (originalAmount <= 0) {
+        throw new Error('অনুগ্রহ করে সঠিক টাকার পরিমাণ দিন');
+      }
+      if (!loan.person_name?.trim()) {
+        throw new Error('ব্যক্তির নাম আবশ্যক');
+      }
+
+      const currentLoans = getLocal<LoanRecord[]>('loans', isDemoMode ? DEMO_SAMPLE_LOANS : INITIAL_LOANS);
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const dueDate = loan.due_date ? loan.due_date.split('T')[0] : null;
+      const isOverdue = dueDate ? dueDate < today : false;
+
+      const newLoan: LoanRecord = {
+        id: `loan-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        user_id: currentUserId,
+        type: loan.type || 'receivable',
+        person_name: loan.person_name.trim(),
+        phone_number: loan.phone_number?.trim() || null,
+        original_amount: originalAmount,
+        start_date: loan.start_date || today,
+        due_date: dueDate,
+        interest_rate: loan.interest_rate !== undefined ? Number(loan.interest_rate) : null,
+        interest_type: loan.interest_type || null,
+        description: loan.description?.trim() || null,
+        account_id: loan.account_id || null,
+        repayments: [],
+        total_repaid: 0,
+        remaining_balance: originalAmount,
+        status: isOverdue ? 'overdue' : 'unpaid',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      currentLoans.unshift(newLoan);
+      setLocal('loans', currentLoans);
+
+      // Adjust linked account balance
+      if (loan.account_id) {
+        await recalculateAccountBalance(loan.account_id);
+      }
+
+      await refreshData();
+      broadcastDataChange();
+      if (!isDemoMode) syncWithCloud();
+
+      addNotification({
+        type: 'loan_added',
+        title: loan.type === 'payable' ? 'ধার নেওয়া হয়েছে (Payable)' : 'টাকা ধার দেওয়া হয়েছে (Receivable)',
+        description: `${loan.person_name} - ৳${originalAmount.toLocaleString()}`,
+        amount: originalAmount,
+        account: accounts.find((a) => a.id === loan.account_id)?.name,
+      });
+
+      toast.success(
+        loan.type === 'payable'
+          ? 'দেনার হিসাব সফলভাবে সংরক্ষিত হয়েছে'
+          : 'পাওনার হিসাব সফলভাবে সংরক্ষিত হয়েছে'
+      );
+    },
+    [user, isDemoMode, accounts, getLocal, setLocal, recalculateAccountBalance, refreshData, broadcastDataChange, syncWithCloud, addNotification]
+  );
+
+  const updateLoan = useCallback(
+    async (id: string, loan: Partial<LoanRecord>) => {
+      const currentLoans = getLocal<LoanRecord[]>('loans', isDemoMode ? DEMO_SAMPLE_LOANS : INITIAL_LOANS);
+      const idx = currentLoans.findIndex((l) => l.id === id);
+      if (idx === -1) return;
+
+      const old = currentLoans[idx];
+      const prevAccountId = old.account_id;
+      const newOriginalAmount = loan.original_amount !== undefined ? Number(loan.original_amount) : old.original_amount;
+      const repayments = old.repayments || [];
+      const totalRepaid = repayments.reduce((s, r) => s + Number(r.amount || 0), 0);
+      const remaining = Math.max(0, newOriginalAmount - totalRepaid);
+
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const dueDate = loan.due_date !== undefined ? (loan.due_date ? loan.due_date.split('T')[0] : null) : old.due_date;
+      let status: LoanStatus = 'unpaid';
+      if (remaining <= 0) {
+        status = 'paid';
+      } else if (dueDate && dueDate < today) {
+        status = 'overdue';
+      } else if (totalRepaid > 0) {
+        status = 'partially_paid';
+      }
+
+      currentLoans[idx] = {
+        ...old,
+        ...loan,
+        original_amount: newOriginalAmount,
+        due_date: dueDate,
+        total_repaid: totalRepaid,
+        remaining_balance: remaining,
+        status,
+        updated_at: new Date().toISOString(),
+      };
+
+      setLocal('loans', currentLoans);
+
+      // Recalculate affected accounts
+      if (prevAccountId) await recalculateAccountBalance(prevAccountId);
+      if (loan.account_id && loan.account_id !== prevAccountId) {
+        await recalculateAccountBalance(loan.account_id);
+      }
+
+      await refreshData();
+      broadcastDataChange();
+      if (!isDemoMode) syncWithCloud();
+
+      addNotification({
+        type: 'loan_updated',
+        title: 'ঋণের হিসাব হালনাগাদ করা হয়েছে',
+        description: `${currentLoans[idx].person_name} - অবশিষ্ট ৳${remaining.toLocaleString()}`,
+      });
+
+      toast.success('ঋণের হিসাব আপডেট করা হয়েছে');
+    },
+    [isDemoMode, getLocal, setLocal, recalculateAccountBalance, refreshData, broadcastDataChange, syncWithCloud, addNotification]
+  );
+
+  const deleteLoan = useCallback(
+    async (id: string) => {
+      const currentLoans = getLocal<LoanRecord[]>('loans', isDemoMode ? DEMO_SAMPLE_LOANS : INITIAL_LOANS);
+      const old = currentLoans.find((l) => l.id === id);
+      if (!old) return;
+
+      const filtered = currentLoans.filter((l) => l.id !== id);
+      setLocal('loans', filtered);
+
+      // Recalculate affected accounts
+      if (old.account_id) await recalculateAccountBalance(old.account_id);
+      for (const r of old.repayments || []) {
+        if (r.account_id && r.account_id !== old.account_id) {
+          await recalculateAccountBalance(r.account_id);
+        }
+      }
+
+      await refreshData();
+      broadcastDataChange();
+      if (!isDemoMode) syncWithCloud();
+
+      addNotification({
+        type: 'loan_deleted',
+        title: 'ঋণের হিসাব মুছে ফেলা হয়েছে',
+        description: `${old.person_name} - ৳${old.original_amount.toLocaleString()}`,
+      });
+
+      toast(
+        (t) => (
+          <div className="flex items-center justify-between gap-3 w-full py-0.5">
+            <div className="flex flex-col text-xs leading-tight">
+              <span className="font-semibold text-white">{old.person_name} এর ঋণ ডিলিট হয়েছে</span>
+              <span className="text-gray-300">৳{old.original_amount.toLocaleString()}</span>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                toast.dismiss(t.id);
+                const restoredLoans = getLocal<LoanRecord[]>('loans', isDemoMode ? DEMO_SAMPLE_LOANS : INITIAL_LOANS);
+                restoredLoans.unshift(old);
+                setLocal('loans', restoredLoans);
+                if (old.account_id) await recalculateAccountBalance(old.account_id);
+                await refreshData();
+                broadcastDataChange();
+                if (!isDemoMode) syncWithCloud();
+                toast.success('ঋণ পুনরুদ্ধার করা হয়েছে');
+              }}
+              className="rounded-lg bg-teal-500 hover:bg-teal-400 px-3 py-1.5 text-xs font-bold text-white shadow-md transition-all active:scale-95"
+            >
+              Undo / ফিরিয়ে নিন
+            </button>
+          </div>
+        ),
+        {
+          duration: 7000,
+          icon: '🗑️',
+          style: {
+            background: '#1e293b',
+            color: '#ffffff',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
+            borderRadius: '16px',
+            padding: '12px 16px',
+          },
+        }
+      );
+    },
+    [isDemoMode, getLocal, setLocal, recalculateAccountBalance, refreshData, broadcastDataChange, syncWithCloud, addNotification]
+  );
+
+  const addLoanRepayment = useCallback(
+    async (loanId: string, repayment: Partial<LoanRepayment>) => {
+      const currentLoans = getLocal<LoanRecord[]>('loans', isDemoMode ? DEMO_SAMPLE_LOANS : INITIAL_LOANS);
+      const loan = currentLoans.find((l) => l.id === loanId);
+      if (!loan) throw new Error('ঋণের রেকর্ড পাওয়া যায়নি');
+
+      const repAmount = Number(repayment.amount) || 0;
+      if (repAmount <= 0) {
+        throw new Error('অনুগ্রহ করে সঠিক কিস্তির পরিমাণ দিন');
+      }
+      if (repAmount > loan.remaining_balance) {
+        throw new Error(`কিস্তির পরিমাণ বাকি টাকার (৳${loan.remaining_balance.toLocaleString()}) চেয়ে বেশি হতে পারে না`);
+      }
+
+      const currentUserId = user?.id || 'demo-user-id';
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const newRep: LoanRepayment = {
+        id: `rep-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        loan_id: loanId,
+        user_id: currentUserId,
+        amount: repAmount,
+        date: repayment.date || today,
+        payment_method: repayment.payment_method || null,
+        account_id: repayment.account_id || loan.account_id,
+        notes: repayment.notes?.trim() || null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      loan.repayments = loan.repayments || [];
+      loan.repayments.unshift(newRep);
+
+      const totalRepaid = loan.repayments.reduce((s, r) => s + Number(r.amount || 0), 0);
+      const remaining = Math.max(0, loan.original_amount - totalRepaid);
+      loan.total_repaid = totalRepaid;
+      loan.remaining_balance = remaining;
+
+      const dueDate = loan.due_date ? loan.due_date.split('T')[0] : null;
+      if (remaining <= 0) {
+        loan.status = 'paid';
+      } else if (dueDate && dueDate < today) {
+        loan.status = 'overdue';
+      } else {
+        loan.status = 'partially_paid';
+      }
+      loan.updated_at = new Date().toISOString();
+
+      setLocal('loans', currentLoans);
+
+      // Recalculate target account balance
+      const targetAccountId = newRep.account_id || loan.account_id;
+      if (targetAccountId) {
+        await recalculateAccountBalance(targetAccountId);
+      }
+
+      await refreshData();
+      broadcastDataChange();
+      if (!isDemoMode) syncWithCloud();
+
+      addNotification({
+        type: 'repayment_added',
+        title: loan.type === 'receivable' ? 'পাওনা আদায় / কিস্তি প্রাপ্তি' : 'দেনা পরিশোধ / কিস্তি প্রদান',
+        description: `${loan.person_name} - ৳${repAmount.toLocaleString()} (${remaining > 0 ? `বাকি ৳${remaining.toLocaleString()}` : 'সম্পূর্ণ পরিশোধিত'})`,
+        amount: repAmount,
+        account: accounts.find((a) => a.id === targetAccountId)?.name,
+      });
+
+      toast.success(
+        remaining === 0
+          ? 'সম্পূর্ণ টাকা পরিশোধ সম্পন্ন হয়েছে!'
+          : `৳${repAmount.toLocaleString()} কিস্তি সফলভাবে সংরক্ষিত হয়েছে (বাকি ৳${remaining.toLocaleString()})`
+      );
+    },
+    [user, isDemoMode, accounts, getLocal, setLocal, recalculateAccountBalance, refreshData, broadcastDataChange, syncWithCloud, addNotification]
+  );
+
+  const deleteLoanRepayment = useCallback(
+    async (loanId: string, repaymentId: string) => {
+      const currentLoans = getLocal<LoanRecord[]>('loans', isDemoMode ? DEMO_SAMPLE_LOANS : INITIAL_LOANS);
+      const loan = currentLoans.find((l) => l.id === loanId);
+      if (!loan) return;
+
+      const rep = (loan.repayments || []).find((r) => r.id === repaymentId);
+      if (!rep) return;
+
+      loan.repayments = (loan.repayments || []).filter((r) => r.id !== repaymentId);
+      const totalRepaid = loan.repayments.reduce((s, r) => s + Number(r.amount || 0), 0);
+      const remaining = Math.max(0, loan.original_amount - totalRepaid);
+      loan.total_repaid = totalRepaid;
+      loan.remaining_balance = remaining;
+
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const dueDate = loan.due_date ? loan.due_date.split('T')[0] : null;
+      if (remaining <= 0) {
+        loan.status = 'paid';
+      } else if (dueDate && dueDate < today) {
+        loan.status = 'overdue';
+      } else if (totalRepaid > 0) {
+        loan.status = 'partially_paid';
+      } else {
+        loan.status = 'unpaid';
+      }
+      loan.updated_at = new Date().toISOString();
+
+      setLocal('loans', currentLoans);
+
+      const targetAccountId = rep.account_id || loan.account_id;
+      if (targetAccountId) {
+        await recalculateAccountBalance(targetAccountId);
+      }
+
+      await refreshData();
+      broadcastDataChange();
+      if (!isDemoMode) syncWithCloud();
+
+      addNotification({
+        type: 'repayment_deleted',
+        title: 'কিস্তির রেকর্ড মুছে ফেলা হয়েছে',
+        description: `${loan.person_name} - ৳${rep.amount.toLocaleString()}`,
+      });
+
+      toast.success('কিস্তির রেকর্ড মুছে ফেলা হয়েছে এবং ব্যালেন্স সমন্বয় করা হয়েছে');
+    },
+    [isDemoMode, getLocal, setLocal, recalculateAccountBalance, refreshData, broadcastDataChange, syncWithCloud, addNotification]
   );
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -1352,6 +1794,7 @@ function setLocal<T>(key: string, data: T) {
     setLocal('budgets', []);
     setLocal('savings', []);
     setLocal('recurring', []);
+    setLocal('loans', INITIAL_LOANS);
     localStorage.setItem(ZERO_INITIALIZED_KEY, 'true');
 
     setTransactions([]);
@@ -1359,19 +1802,23 @@ function setLocal<T>(key: string, data: T) {
     setBudgets([]);
     setSavingsGoals([]);
     setRecurringTransactions([]);
+    setLoans([]);
 
     broadcastDataChange();
-    await syncWithCloud({
-      accounts: INITIAL_ACCOUNTS,
-      categories: getLocal<Category[]>('categories', INITIAL_CATEGORIES),
-      transactions: [],
-      budgets: [],
-      savingsGoals: [],
-      recurringTransactions: [],
-    });
+    if (!isDemoMode) {
+      await syncWithCloud({
+        accounts: INITIAL_ACCOUNTS,
+        categories: getLocal<Category[]>('categories', INITIAL_CATEGORIES),
+        transactions: [],
+        budgets: [],
+        savingsGoals: [],
+        recurringTransactions: [],
+        loans: [],
+      });
+    }
 
     toast.success('সব হিসেব রিসেট সম্পন্ন! একদম শূন্য (৳০) থেকে শুরু করতে পারেন।');
-  }, [broadcastDataChange, syncWithCloud]);
+  }, [isDemoMode, getLocal, setLocal, broadcastDataChange, syncWithCloud]);
 
   const loadDemoData = useCallback(async () => {
     const ZERO_INITIALIZED_KEY = 'my-money-zero-v3';
@@ -1380,20 +1827,24 @@ function setLocal<T>(key: string, data: T) {
     setLocal('budgets', DEMO_SAMPLE_BUDGETS);
     setLocal('savings', DEMO_SAMPLE_SAVINGS_GOALS);
     setLocal('recurring', DEMO_SAMPLE_RECURRING);
+    setLocal('loans', DEMO_SAMPLE_LOANS);
     localStorage.setItem(ZERO_INITIALIZED_KEY, 'demo');
 
     await refreshData();
     broadcastDataChange();
-    await syncWithCloud({
-      accounts: DEMO_SAMPLE_ACCOUNTS,
-      categories: getLocal<Category[]>('categories', INITIAL_CATEGORIES),
-      transactions: DEMO_SAMPLE_TRANSACTIONS,
-      budgets: DEMO_SAMPLE_BUDGETS,
-      savingsGoals: DEMO_SAMPLE_SAVINGS_GOALS,
-      recurringTransactions: DEMO_SAMPLE_RECURRING,
-    });
+    if (!isDemoMode) {
+      await syncWithCloud({
+        accounts: DEMO_SAMPLE_ACCOUNTS,
+        categories: getLocal<Category[]>('categories', INITIAL_CATEGORIES),
+        transactions: DEMO_SAMPLE_TRANSACTIONS,
+        budgets: DEMO_SAMPLE_BUDGETS,
+        savingsGoals: DEMO_SAMPLE_SAVINGS_GOALS,
+        recurringTransactions: DEMO_SAMPLE_RECURRING,
+        loans: DEMO_SAMPLE_LOANS,
+      });
+    }
     toast.success('নমুনা ডেমো ডেটা লোড করা হয়েছে');
-  }, [refreshData, broadcastDataChange, syncWithCloud]);
+  }, [isDemoMode, getLocal, setLocal, refreshData, broadcastDataChange, syncWithCloud]);
 
   const migrateLocalToCloud = useCallback(async () => {
     if (!user) return { success: false, count: 0, message: 'User not authenticated' };
@@ -1672,6 +2123,19 @@ function setLocal<T>(key: string, data: T) {
       deleteRecurring,
       markRecurringPaid,
 
+      // Demo Mode
+      isDemoMode,
+      resetDemoData,
+
+      // Personal Lending & Borrowing (Loans)
+      loans,
+      loanSummary,
+      addLoan,
+      updateLoan,
+      deleteLoan,
+      addLoanRepayment,
+      deleteLoanRepayment,
+
       // Refresh & Utilities
       refreshData,
       resetToZero,
@@ -1691,6 +2155,15 @@ function setLocal<T>(key: string, data: T) {
       budgets,
       savingsGoals,
       recurringTransactions,
+      loans,
+      loanSummary,
+      isDemoMode,
+      resetDemoData,
+      addLoan,
+      updateLoan,
+      deleteLoan,
+      addLoanRepayment,
+      deleteLoanRepayment,
       loading,
       error,
       selectedMonth,

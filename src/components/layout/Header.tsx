@@ -33,6 +33,7 @@ import {
   Lock,
   Palette,
   Download,
+  LogIn,
 } from 'lucide-react';
 import { usePwaInstall } from '@/lib/pwa';
 
@@ -43,6 +44,7 @@ const routeTitles: Record<string, { en: string; bn: string }> = {
   '/budgets': { en: 'Budgets', bn: 'বাজেট পরিকল্পনা' },
   '/categories': { en: 'Categories', bn: 'ক্যাটাগরি' },
   '/accounts': { en: 'Accounts', bn: 'অ্যাকাউন্ট ও ওয়ালেট' },
+  '/loans': { en: 'Loans & Lending', bn: 'ধার ও ঋণের হিসাব' },
   '/insights': { en: 'Insights', bn: 'স্মার্ট ইনসাইটস' },
   '/reports': { en: 'Reports', bn: 'রিপোর্ট ও PDF' },
   '/savings': { en: 'Savings Goals', bn: 'সঞ্চয় লক্ষ্য' },
@@ -60,7 +62,7 @@ export function Header({ onToggleMobileSidebar }: HeaderProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, profile, signOut, isConfigured } = useAuth();
-  const { syncStatus, lastSyncedAt, triggerSync } = useData();
+  const { syncStatus, lastSyncedAt, triggerSync, isDemoMode } = useData();
   const {
     theme,
     toggleTheme,
@@ -126,58 +128,70 @@ export function Header({ onToggleMobileSidebar }: HeaderProps) {
 
         {/* Right side */}
         <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* Real-Time Cloud Sync Pill */}
-          <button
-            type="button"
-            onClick={() => triggerSync()}
-            title={
-              syncStatus === 'saved'
-                ? lastSyncedAt
-                  ? `ক্লাউডে সংরক্ষিত (${lastSyncedAt.toLocaleTimeString()}) - সিঙ্ক করতে ক্লিক করুন`
-                  : 'ক্লাউডে সংরক্ষিত'
-                : syncStatus === 'saving'
-                ? 'ক্লাউডে সেভ হচ্ছে...'
-                : syncStatus === 'offline'
-                ? 'অফলাইন মোড: ইন্টারনেট পেলে স্বয়ংক্রিয় সিঙ্ক হবে'
-                : 'সিঙ্ক ত্রুটি! পুনরায় চেষ্টা করতে ক্লিক করুন'
-            }
-            className={clsx(
-              'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold shadow-sm transition-all',
-              syncStatus === 'saved' &&
-                'border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-900/60 dark:bg-emerald-950/60 dark:text-emerald-300',
-              syncStatus === 'saving' &&
-                'border border-amber-200 bg-amber-50 text-amber-800 animate-pulse dark:border-amber-900/60 dark:bg-amber-950/60 dark:text-amber-300',
-              syncStatus === 'offline' &&
-                'border border-gray-200 bg-gray-100 text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300',
-              syncStatus === 'error' &&
-                'border border-red-200 bg-red-50 text-red-800 hover:bg-red-100 dark:border-red-900/60 dark:bg-red-950/60 dark:text-red-300'
-            )}
-          >
-            {syncStatus === 'saved' && (
-              <>
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="hidden sm:inline">{language === 'bn' ? 'সংরক্ষিত' : 'Saved'}</span>
-              </>
-            )}
-            {syncStatus === 'saving' && (
-              <>
-                <Loader2 className="h-3 w-3 animate-spin text-amber-600 dark:text-amber-400" />
-                <span className="hidden sm:inline">{language === 'bn' ? 'সংরক্ষণ হচ্ছে...' : 'Saving...'}</span>
-              </>
-            )}
-            {syncStatus === 'offline' && (
-              <>
-                <CloudOff className="h-3 w-3 text-gray-500" />
-                <span className="hidden sm:inline">{language === 'bn' ? 'অফলাইন' : 'Offline'}</span>
-              </>
-            )}
-            {syncStatus === 'error' && (
-              <>
-                <AlertCircle className="h-3 w-3 text-red-600 dark:text-red-400" />
-                <span className="hidden sm:inline">{language === 'bn' ? 'সিঙ্ক ব্যর্থ' : 'Sync Failed'}</span>
-              </>
-            )}
-          </button>
+          {/* Real-Time Cloud Sync Pill or Demo Indicator */}
+          {isDemoMode ? (
+            <div
+              className="flex items-center gap-1.5 rounded-full border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs font-bold text-teal-800 shadow-xs dark:border-teal-900/60 dark:bg-teal-950/60 dark:text-teal-300"
+              title={language === 'bn' ? 'পাবলিক ডেমো মোড (নমুনা ডাটা)' : 'Public Demo Mode (Sample Data)'}
+            >
+              <span className="h-2 w-2 rounded-full bg-teal-500 animate-pulse" />
+              <span className="hidden sm:inline">
+                {language === 'bn' ? '🎯 ডেমো মোড' : '🎯 Demo Mode'}
+              </span>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => triggerSync()}
+              title={
+                syncStatus === 'saved'
+                  ? lastSyncedAt
+                    ? `ক্লাউডে সংরক্ষিত (${lastSyncedAt.toLocaleTimeString()}) - সিঙ্ক করতে ক্লিক করুন`
+                    : 'ক্লাউডে সংরক্ষিত'
+                  : syncStatus === 'saving'
+                  ? 'ক্লাউডে সেভ হচ্ছে...'
+                  : syncStatus === 'offline'
+                  ? 'অফলাইন মোড: ইন্টারনেট পেলে স্বয়ংক্রিয় সিঙ্ক হবে'
+                  : 'সিঙ্ক ত্রুটি! পুনরায় চেষ্টা করতে ক্লিক করুন'
+              }
+              className={clsx(
+                'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold shadow-sm transition-all',
+                syncStatus === 'saved' &&
+                  'border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-900/60 dark:bg-emerald-950/60 dark:text-emerald-300',
+                syncStatus === 'saving' &&
+                  'border border-amber-200 bg-amber-50 text-amber-800 animate-pulse dark:border-amber-900/60 dark:bg-amber-950/60 dark:text-amber-300',
+                syncStatus === 'offline' &&
+                  'border border-gray-200 bg-gray-100 text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300',
+                syncStatus === 'error' &&
+                  'border border-red-200 bg-red-50 text-red-800 hover:bg-red-100 dark:border-red-900/60 dark:bg-red-950/60 dark:text-red-300'
+              )}
+            >
+              {syncStatus === 'saved' && (
+                <>
+                  <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="hidden sm:inline">{language === 'bn' ? 'সংরক্ষিত' : 'Saved'}</span>
+                </>
+              )}
+              {syncStatus === 'saving' && (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin text-amber-600 dark:text-amber-400" />
+                  <span className="hidden sm:inline">{language === 'bn' ? 'সংরক্ষণ হচ্ছে...' : 'Saving...'}</span>
+                </>
+              )}
+              {syncStatus === 'offline' && (
+                <>
+                  <CloudOff className="h-3 w-3 text-gray-500" />
+                  <span className="hidden sm:inline">{language === 'bn' ? 'অফলাইন' : 'Offline'}</span>
+                </>
+              )}
+              {syncStatus === 'error' && (
+                <>
+                  <AlertCircle className="h-3 w-3 text-red-600 dark:text-red-400" />
+                  <span className="hidden sm:inline">{language === 'bn' ? 'সিঙ্ক ব্যর্থ' : 'Sync Failed'}</span>
+                </>
+              )}
+            </button>
+          )}
           {/* Language Switcher Button */}
           <button
             type="button"
@@ -279,110 +293,121 @@ export function Header({ onToggleMobileSidebar }: HeaderProps) {
             )}
           </button>
 
-          {/* User menu */}
-          <div className="relative" ref={userMenuRef}>
+          {/* User menu or Login button */}
+          {isDemoMode ? (
             <button
-              onClick={() => setShowUserMenu(!showUserMenu)}
-              className="flex items-center gap-2 rounded-lg p-1.5 transition-colors hover:bg-gray-100 dark:hover:bg-gray-700"
+              onClick={() => navigate('/login')}
+              className="flex items-center gap-1.5 rounded-xl bg-teal-500 hover:bg-teal-600 text-white px-3 py-1.5 text-xs font-semibold shadow-sm transition-all active:scale-95"
+              title={language === 'bn' ? 'মাস্টার পাসওয়ার্ড দিয়ে লগইন করুন' : 'Login with Master Password'}
             >
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-teal-100 text-sm font-semibold text-teal-700 dark:bg-teal-900/50 dark:text-teal-300">
-                {avatarInitial}
-              </div>
-              <ChevronDown
-                className={clsx(
-                  'hidden h-4 w-4 text-gray-400 transition-transform sm:block',
-                  showUserMenu && 'rotate-180'
-                )}
-              />
+              <LogIn className="h-4 w-4" />
+              <span>{language === 'bn' ? 'লগইন' : 'Login'}</span>
             </button>
-
-            {/* Dropdown */}
-            {showUserMenu && (
-              <div className="absolute right-0 top-full mt-2 w-56 rounded-xl border border-gray-200 bg-white py-1.5 shadow-lg dark:border-gray-700 dark:bg-gray-800">
-                {/* User info */}
-                <div className="border-b border-gray-100 px-4 py-3 dark:border-gray-700">
-                  <p className="truncate text-sm font-medium text-gray-900 dark:text-white">
-                    {displayName}
-                  </p>
-                  <p className="truncate text-xs text-gray-500 dark:text-gray-400">
-                    {user?.email || ''}
-                  </p>
+          ) : (
+            <div className="relative" ref={userMenuRef}>
+              <button
+                onClick={() => setShowUserMenu(!showUserMenu)}
+                className="flex items-center gap-2 rounded-lg p-1.5 transition-colors hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-teal-100 text-sm font-semibold text-teal-700 dark:bg-teal-900/50 dark:text-teal-300">
+                  {avatarInitial}
                 </div>
+                <ChevronDown
+                  className={clsx(
+                    'hidden h-4 w-4 text-gray-400 transition-transform sm:block',
+                    showUserMenu && 'rotate-180'
+                  )}
+                />
+              </button>
 
-                {/* Menu items */}
-                <div className="py-1">
-                  <button
-                    onClick={() => {
-                      setShowUserMenu(false);
-                      navigate('/settings');
-                    }}
-                    className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
-                  >
-                    <User className="h-4 w-4 text-gray-400" />
-                    Profile
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowUserMenu(false);
-                      navigate('/settings');
-                    }}
-                    className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
-                  >
-                    <Settings className="h-4 w-4 text-gray-400" />
-                    {language === 'bn' ? 'সেটিংস' : 'Settings'}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowUserMenu(false);
-                      navigate('/settings?tab=theme');
-                    }}
-                    className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
-                  >
-                    <Palette className="h-4 w-4 text-indigo-500" />
-                    {language === 'bn' ? 'থিম ও অ্যাপিয়ারেন্স' : 'Theme Settings'}
-                  </button>
-                  {isPinEnabled && (
+              {/* Dropdown */}
+              {showUserMenu && (
+                <div className="absolute right-0 top-full mt-2 w-56 rounded-xl border border-gray-200 bg-white py-1.5 shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                  {/* User info */}
+                  <div className="border-b border-gray-100 px-4 py-3 dark:border-gray-700">
+                    <p className="truncate text-sm font-medium text-gray-900 dark:text-white">
+                      {displayName}
+                    </p>
+                    <p className="truncate text-xs text-gray-500 dark:text-gray-400">
+                      {user?.email || ''}
+                    </p>
+                  </div>
+
+                  {/* Menu items */}
+                  <div className="py-1">
                     <button
                       onClick={() => {
                         setShowUserMenu(false);
-                        lockApp();
+                        navigate('/settings');
                       }}
-                      className="flex w-full items-center gap-3 px-4 py-2 text-sm text-teal-600 transition-colors hover:bg-teal-50 dark:text-teal-400 dark:hover:bg-teal-950/40"
+                      className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
                     >
-                      <Lock className="h-4 w-4" />
-                      {language === 'bn' ? 'কুইক পিন দিয়ে লক করুন' : 'Lock App (Quick PIN)'}
+                      <User className="h-4 w-4 text-gray-400" />
+                      Profile
                     </button>
-                  )}
-                  {canInstall && (
                     <button
                       onClick={() => {
                         setShowUserMenu(false);
-                        promptInstall();
+                        navigate('/settings');
                       }}
-                      className="flex w-full items-center gap-3 px-4 py-2 text-sm text-teal-600 font-medium transition-colors hover:bg-teal-50 dark:text-teal-400 dark:hover:bg-teal-950/40"
+                      className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
                     >
-                      <Download className="h-4 w-4" />
-                      {language === 'bn' ? 'হোম স্ক্রিনে অ্যাপ ইন্সটল' : 'Install PWA App'}
+                      <Settings className="h-4 w-4 text-gray-400" />
+                      {language === 'bn' ? 'সেটিংস' : 'Settings'}
                     </button>
-                  )}
-                </div>
+                    <button
+                      onClick={() => {
+                        setShowUserMenu(false);
+                        navigate('/settings?tab=theme');
+                      }}
+                      className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
+                    >
+                      <Palette className="h-4 w-4 text-indigo-500" />
+                      {language === 'bn' ? 'থিম ও অ্যাপিয়ারেন্স' : 'Theme Settings'}
+                    </button>
+                    {isPinEnabled && (
+                      <button
+                        onClick={() => {
+                          setShowUserMenu(false);
+                          lockApp();
+                        }}
+                        className="flex w-full items-center gap-3 px-4 py-2 text-sm text-teal-600 transition-colors hover:bg-teal-50 dark:text-teal-400 dark:hover:bg-teal-950/40"
+                      >
+                        <Lock className="h-4 w-4" />
+                        {language === 'bn' ? 'কুইক পিন দিয়ে লক করুন' : 'Lock App (Quick PIN)'}
+                      </button>
+                    )}
+                    {canInstall && (
+                      <button
+                        onClick={() => {
+                          setShowUserMenu(false);
+                          promptInstall();
+                        }}
+                        className="flex w-full items-center gap-3 px-4 py-2 text-sm text-teal-600 font-medium transition-colors hover:bg-teal-50 dark:text-teal-400 dark:hover:bg-teal-950/40"
+                      >
+                        <Download className="h-4 w-4" />
+                        {language === 'bn' ? 'হোম স্ক্রিনে অ্যাপ ইন্সটল' : 'Install PWA App'}
+                      </button>
+                    )}
+                  </div>
 
-                {/* Logout */}
-                <div className="border-t border-gray-100 pt-1 dark:border-gray-700">
-                  <button
-                    onClick={() => {
-                      setShowUserMenu(false);
-                      signOut();
-                    }}
-                    className="flex w-full items-center gap-3 px-4 py-2 text-sm text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
-                  >
-                    <LogOut className="h-4 w-4" />
-                    Sign out
-                  </button>
+                  {/* Logout */}
+                  <div className="border-t border-gray-100 pt-1 dark:border-gray-700">
+                    <button
+                      onClick={() => {
+                        setShowUserMenu(false);
+                        signOut();
+                      }}
+                      className="flex w-full items-center gap-3 px-4 py-2 text-sm text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      Sign out
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

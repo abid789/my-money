@@ -39,7 +39,22 @@ type TimeRange = '7d' | '30d' | '90d' | '12m';
 export function CashFlowOverview() {
   const { transactions } = useData();
   const { language } = useLanguage();
-  const [range, setRange] = useState<TimeRange>('30d');
+  const [range, setRange] = useState<TimeRange>(() => {
+    try {
+      const saved = localStorage.getItem('my-money-cashflow-range');
+      if (saved && ['7d', '30d', '90d', '12m'].includes(saved)) {
+        return saved as TimeRange;
+      }
+    } catch {}
+    return '7d'; // Default to Last 7 Days as required
+  });
+
+  const handleRangeChange = (newRange: TimeRange) => {
+    setRange(newRange);
+    try {
+      localStorage.setItem('my-money-cashflow-range', newRange);
+    } catch {}
+  };
 
   // Labels
   const inflowLabel = language === 'bn' ? 'মোট ইনফ্লো (আয়)' : 'Cash Inflow';

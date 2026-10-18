@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useData } from '@/contexts/DataContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import clsx from 'clsx';
 import {
@@ -10,6 +11,7 @@ import {
   Target,
   Tag,
   Wallet,
+  HandCoins,
   Lightbulb,
   FileBarChart,
   PiggyBank,
@@ -20,6 +22,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   LogOut,
+  LogIn,
 } from 'lucide-react';
 
 const navItems = [
@@ -29,6 +32,7 @@ const navItems = [
   { path: '/budgets', key: 'nav.budgets', icon: Target },
   { path: '/categories', key: 'nav.categories', icon: Tag },
   { path: '/accounts', key: 'nav.accounts', icon: Wallet },
+  { path: '/loans', key: 'nav.loans', icon: HandCoins },
   { path: '/insights', key: 'nav.insights', icon: Lightbulb },
   { path: '/reports', key: 'nav.reports', icon: FileBarChart },
   { path: '/savings', key: 'nav.savings', icon: PiggyBank },
@@ -40,8 +44,10 @@ const navItems = [
 
 export function Sidebar() {
   const { user, profile, signOut } = useAuth();
+  const { isDemoMode } = useData();
   const { t, language } = useLanguage();
   const location = useLocation();
+  const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
 
   // Persist collapsed state
@@ -153,36 +159,56 @@ export function Sidebar() {
           collapsed ? 'flex flex-col items-center gap-2' : ''
         )}
       >
-        <div
-          className={clsx(
-            'flex items-center',
-            collapsed ? 'flex-col gap-2' : 'gap-3'
-          )}
-        >
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-teal-100 text-sm font-semibold text-teal-700 dark:bg-teal-900/50 dark:text-teal-300">
-            {avatarInitial}
-          </div>
-          {!collapsed && (
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-gray-900 dark:text-white">
-                {displayName}
-              </p>
-              <p className="truncate text-xs text-gray-500 dark:text-gray-400">
-                {user?.email || ''}
-              </p>
-            </div>
-          )}
-          <button
-            onClick={signOut}
-            title="Sign out"
+        {isDemoMode ? (
+          collapsed ? (
+            <button
+              onClick={() => navigate('/login')}
+              title={language === 'bn' ? 'লগইন' : 'Login'}
+              className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-500 text-white shadow-sm hover:bg-teal-600 transition-all"
+            >
+              <LogIn className="h-4 w-4" />
+            </button>
+          ) : (
+            <button
+              onClick={() => navigate('/login')}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-teal-500 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-teal-600 transition-all active:scale-95"
+            >
+              <LogIn className="h-4 w-4" />
+              <span>{language === 'bn' ? 'মাস্টার লগইন' : 'Master Login'}</span>
+            </button>
+          )
+        ) : (
+          <div
             className={clsx(
-              'shrink-0 rounded-lg p-2 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20 dark:hover:text-red-400',
-              collapsed ? '' : ''
+              'flex items-center',
+              collapsed ? 'flex-col gap-2' : 'gap-3'
             )}
           >
-            <LogOut className="h-4 w-4" />
-          </button>
-        </div>
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-teal-100 text-sm font-semibold text-teal-700 dark:bg-teal-900/50 dark:text-teal-300">
+              {avatarInitial}
+            </div>
+            {!collapsed && (
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-gray-900 dark:text-white">
+                  {displayName}
+                </p>
+                <p className="truncate text-xs text-gray-500 dark:text-gray-400">
+                  {user?.email || ''}
+                </p>
+              </div>
+            )}
+            <button
+              onClick={signOut}
+              title="Sign out"
+              className={clsx(
+                'shrink-0 rounded-lg p-2 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20 dark:hover:text-red-400',
+                collapsed ? '' : ''
+              )}
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          </div>
+        )}
       </div>
     </aside>
   );

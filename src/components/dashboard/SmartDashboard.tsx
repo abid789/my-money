@@ -33,6 +33,8 @@ import {
   FileBarChart,
   Calendar,
   AlertTriangle,
+  AlertCircle,
+  HandCoins,
   CheckCircle2,
   ChevronRight,
   Calculator,
@@ -48,6 +50,7 @@ export function SmartDashboard() {
     filteredTransactions,
     selectedMonth,
     selectedYear,
+    loanSummary,
   } = useData();
   const { isPrivacyBlurEnabled, togglePrivacyBlur } = useTheme();
   const { language } = useLanguage();
@@ -289,6 +292,193 @@ export function SmartDashboard() {
             ))}
           </div>
         )}
+      </div>
+
+      {/* ─── Personal Loans, Receivables & Payables Strip ──────────────────── */}
+      <div>
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <HandCoins className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+            <h2 className="text-sm font-bold text-gray-900 dark:text-white">
+              {language === 'bn' ? 'ধার-দেনা ও লেন্ডিং হিসাব (লোন)' : 'Personal Loans & Lending'}
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/loans')}
+            className="flex items-center gap-1 text-xs font-semibold text-teal-600 hover:text-teal-700 dark:text-teal-400"
+          >
+            <span>{language === 'bn' ? 'বিস্তারিত হিসাব' : 'Manage Loans'}</span>
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          {/* 1. Total Receivable */}
+          <div
+            onClick={() => navigate('/loans?tab=receivable')}
+            className="cursor-pointer rounded-2xl border border-emerald-100 bg-emerald-50/40 p-3.5 shadow-xs transition-all hover:border-emerald-300 hover:shadow-md dark:border-emerald-900/40 dark:bg-emerald-950/20"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                {language === 'bn' ? 'টাকা পাবো (পাওনা)' : 'Total Receivable'}
+              </span>
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300">
+                <ArrowDownLeft className="h-4 w-4" />
+              </div>
+            </div>
+            <div
+              className={clsx(
+                'mt-2 text-base font-extrabold text-emerald-700 dark:text-emerald-300 tracking-tight sm:text-lg transition-all',
+                isPrivacyBlurEnabled && 'privacy-blur-target'
+              )}
+            >
+              {isPrivacyBlurEnabled ? '৳ •••••' : formatCurrency(loanSummary.totalReceivable)}
+            </div>
+            <p className="mt-0.5 text-[10px] text-emerald-600/70 dark:text-emerald-400/70">
+              {language === 'bn' ? 'অন্যরা ফেরত দেবে' : 'People owe you'}
+            </p>
+          </div>
+
+          {/* 2. Total Payable */}
+          <div
+            onClick={() => navigate('/loans?tab=payable')}
+            className="cursor-pointer rounded-2xl border border-rose-100 bg-rose-50/40 p-3.5 shadow-xs transition-all hover:border-rose-300 hover:shadow-md dark:border-rose-900/40 dark:bg-rose-950/20"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-rose-700 dark:text-rose-400">
+                {language === 'bn' ? 'টাকা দেবো (দেনা)' : 'Total Payable'}
+              </span>
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-rose-100 text-rose-700 dark:bg-rose-900/60 dark:text-rose-300">
+                <ArrowUpRight className="h-4 w-4" />
+              </div>
+            </div>
+            <div
+              className={clsx(
+                'mt-2 text-base font-extrabold text-rose-700 dark:text-rose-300 tracking-tight sm:text-lg transition-all',
+                isPrivacyBlurEnabled && 'privacy-blur-target'
+              )}
+            >
+              {isPrivacyBlurEnabled ? '৳ •••••' : formatCurrency(loanSummary.totalPayable)}
+            </div>
+            <p className="mt-0.5 text-[10px] text-rose-600/70 dark:text-rose-400/70">
+              {language === 'bn' ? 'আপনাকে পরিশোধ করতে হবে' : 'You owe others'}
+            </p>
+          </div>
+
+          {/* 3. Net Balance */}
+          <div
+            onClick={() => navigate('/loans')}
+            className="cursor-pointer rounded-2xl border border-teal-100 bg-teal-50/40 p-3.5 shadow-xs transition-all hover:border-teal-300 hover:shadow-md dark:border-teal-900/40 dark:bg-teal-950/20"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-teal-700 dark:text-teal-300">
+                {language === 'bn' ? 'নীট লেন্ডিং ব্যালেন্স' : 'Net Lending Balance'}
+              </span>
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-teal-100 text-teal-700 dark:bg-teal-900/60 dark:text-teal-300">
+                <ArrowUpDown className="h-4 w-4" />
+              </div>
+            </div>
+            <div
+              className={clsx(
+                'mt-2 text-base font-extrabold tracking-tight sm:text-lg transition-all',
+                loanSummary.netLendingBalance >= 0
+                  ? 'text-teal-700 dark:text-teal-300'
+                  : 'text-amber-700 dark:text-amber-300',
+                isPrivacyBlurEnabled && 'privacy-blur-target'
+              )}
+            >
+              {isPrivacyBlurEnabled
+                ? '৳ •••••'
+                : `${loanSummary.netLendingBalance < 0 ? '-' : '+'}${formatCurrency(Math.abs(loanSummary.netLendingBalance))}`}
+            </div>
+            <p className="mt-0.5 text-[10px] text-teal-600/70 dark:text-teal-400/70">
+              {language === 'bn' ? 'পাওনা - দেনা' : 'Receivable - Payable'}
+            </p>
+          </div>
+
+          {/* 4. Overdue Receivable */}
+          <div
+            onClick={() => navigate('/loans?tab=receivable')}
+            className={clsx(
+              'cursor-pointer rounded-2xl border p-3.5 shadow-xs transition-all hover:shadow-md',
+              loanSummary.overdueReceivable > 0
+                ? 'border-amber-200 bg-amber-50/50 dark:border-amber-900/40 dark:bg-amber-950/20 hover:border-amber-300'
+                : 'border-gray-100 bg-white dark:border-gray-800 dark:bg-gray-800/90'
+            )}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                {language === 'bn' ? 'মেয়াদোত্তীর্ণ পাওনা' : 'Overdue Receivable'}
+              </span>
+              <div
+                className={clsx(
+                  'flex h-7 w-7 items-center justify-center rounded-lg',
+                  loanSummary.overdueReceivable > 0
+                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300'
+                    : 'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-400'
+                )}
+              >
+                <AlertTriangle className="h-4 w-4" />
+              </div>
+            </div>
+            <div
+              className={clsx(
+                'mt-2 text-base font-extrabold tracking-tight sm:text-lg transition-all',
+                loanSummary.overdueReceivable > 0
+                  ? 'text-amber-700 dark:text-amber-300'
+                  : 'text-gray-400 dark:text-gray-500',
+                isPrivacyBlurEnabled && 'privacy-blur-target'
+              )}
+            >
+              {isPrivacyBlurEnabled ? '৳ •••••' : formatCurrency(loanSummary.overdueReceivable)}
+            </div>
+            <p className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">
+              {language === 'bn' ? 'তাগাদা দেওয়ার বাকি' : 'Needs collection'}
+            </p>
+          </div>
+
+          {/* 5. Overdue Payable */}
+          <div
+            onClick={() => navigate('/loans?tab=payable')}
+            className={clsx(
+              'cursor-pointer rounded-2xl border p-3.5 shadow-xs transition-all hover:shadow-md col-span-2 sm:col-span-1 lg:col-span-1',
+              loanSummary.overduePayable > 0
+                ? 'border-red-200 bg-red-50/50 dark:border-red-900/40 dark:bg-red-950/20 hover:border-red-300'
+                : 'border-gray-100 bg-white dark:border-gray-800 dark:bg-gray-800/90'
+            )}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                {language === 'bn' ? 'মেয়াদোত্তীর্ণ দেনা' : 'Overdue Payable'}
+              </span>
+              <div
+                className={clsx(
+                  'flex h-7 w-7 items-center justify-center rounded-lg',
+                  loanSummary.overduePayable > 0
+                    ? 'bg-red-100 text-red-700 dark:bg-red-900/60 dark:text-red-300'
+                    : 'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-400'
+                )}
+              >
+                <AlertCircle className="h-4 w-4" />
+              </div>
+            </div>
+            <div
+              className={clsx(
+                'mt-2 text-base font-extrabold tracking-tight sm:text-lg transition-all',
+                loanSummary.overduePayable > 0
+                  ? 'text-red-700 dark:text-red-300'
+                  : 'text-gray-400 dark:text-gray-500',
+                isPrivacyBlurEnabled && 'privacy-blur-target'
+              )}
+            >
+              {isPrivacyBlurEnabled ? '৳ •••••' : formatCurrency(loanSummary.overduePayable)}
+            </div>
+            <p className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">
+              {language === 'bn' ? 'দ্রুত পরিশোধ করুন' : 'Due for repayment'}
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* ─── 3. Financial Health & Forecast Row ────────────────────────────── */}
