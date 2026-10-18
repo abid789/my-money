@@ -40,9 +40,42 @@ import {
 } from '@/lib/calculations';
 import { getMonthRange } from '@/lib/utils';
 import toast from 'react-hot-toast';
-import { format, addDays, addWeeks, addMonths, addYears } from 'date-fns';
+import {
+  format,
+  addDays,
+  addWeeks,
+  addMonths,
+  addYears,
+  subDays,
+  subWeeks,
+  subMonths,
+  startOfMonth,
+  endOfMonth,
+  startOfWeek,
+  endOfWeek,
+  startOfYear,
+  endOfYear,
+} from 'date-fns';
 
 export type SyncStatus = 'saved' | 'saving' | 'offline' | 'error';
+
+export type DateRangePreset =
+  | 'this-month'
+  | 'today'
+  | 'yesterday'
+  | 'this-week'
+  | 'last-week'
+  | 'last-month'
+  | 'this-year'
+  | 'all-time'
+  | 'custom';
+
+export interface DateRangeInfo {
+  preset: DateRangePreset;
+  startDate: string;
+  endDate: string;
+  label: string;
+}
 
 interface DataContextValue {
   // State
@@ -58,6 +91,15 @@ interface DataContextValue {
   selectedYear: number;
   setSelectedMonth: (month: number) => void;
   setSelectedYear: (year: number) => void;
+
+  // Date Range Filtering
+  dateRangePreset: DateRangePreset;
+  customStartDate: string;
+  customEndDate: string;
+  effectiveDateRange: DateRangeInfo;
+  setDateRangePreset: (preset: DateRangePreset, customStart?: string, customEnd?: string) => void;
+  filteredTransactions: Transaction[];
+
   financialSummary: FinancialSummary;
   isCloudConnected: boolean;
 
@@ -70,6 +112,7 @@ interface DataContextValue {
   addTransaction: (txn: Partial<Transaction>) => Promise<void>;
   updateTransaction: (id: string, txn: Partial<Transaction>) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
+  restoreTransaction: (txn: Transaction) => Promise<void>;
 
   // Account CRUD
   addAccount: (account: Partial<Account>) => Promise<void>;
@@ -127,10 +170,80 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('saved');
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
 
-  // Period selection
+  // Period and Date Range selection
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
+  const [dateRangePreset, setDateRangePresetState] = useState<DateRangePreset>('this-month');
+  const [customStartDate, setCustomStartDate] = useState(
+    format(startOfMonth(now), 'yyyy-MM-dd')
+  );
+  const [customEndDate, setCustomEndDate] = useState(
+    format(endOfMonth(now), 'yyyy-MM-dd')
+  );
+
+  const setDateRangePreset = useCallback(
+    (preset: DateRangePreset, customStart?: string, customEnd?: string) => {
+      setDateRangePresetState(preset);
+      if (customStart) setCustomStartDate(customStart);
+      if (customEnd) setCustomEndDate(customEnd);
+    },
+    []
+  );
+
+  const effectiveDateRange = useMemo<DateRangeInfo>(() => {
+    const today = new Date();
+    switch (dateRangePreset) {
+      case 'today': {
+        const d = format(today, 'yyyy-MM-dd');
+        return { preset: 'today', startDate: d, endDate: d, label: 'Today / আজ' };
+      }
+      case 'yesterday': {
+        const y = format(subDays(today, 1), 'yyyy-MM-dd');
+        return { preset: 'yesterday', startDate: y, endDate: y, label: 'Yesterday / গতকাল' };
+      }
+      case 'this-week': {
+        const ws = format(startOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+        const we = format(endOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+        return { preset: 'this-week', startDate: ws, endDate: we, label: 'This Week / চলতি সপ্তাহ' };
+      }
+      case 'last-week': {
+        const lastW = subWeeks(today, 1);
+        const ws = format(startOfWeek(lastW, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+        const we = format(endOfWeek(lastW, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+        return { preset: 'last-week', startDate: ws, endDate: we, label: 'Last Week / গত সপ্তাহ' };
+      }
+      case 'last-month': {
+        const lm = subMonths(today, 1);
+        const s = format(startOfMonth(lm), 'yyyy-MM-dd');
+        const e = format(endOfMonth(lm), 'yyyy-MM-dd');
+        return { preset: 'last-month', startDate: s, endDate: e, label: 'Last Month / গত মাস' };
+      }
+      case 'this-year': {
+        const s = format(startOfYear(today), 'yyyy-MM-dd');
+        const e = format(endOfYear(today), 'yyyy-MM-dd');
+        return { preset: 'this-year', startDate: s, endDate: e, label: 'This Year / চলতি বছর' };
+      }
+      case 'all-time': {
+        return { preset: 'all-time', startDate: '1970-01-01', endDate: '2099-12-31', label: 'All Time / সব সময়' };
+      }
+      case 'custom': {
+        const s = customStartDate || '1970-01-01';
+        const e = customEndDate || '2099-12-31';
+        return { preset: 'custom', startDate: s, endDate: e, label: `${s} - ${e}` };
+      }
+      case 'this-month':
+      default: {
+        const [s, e] = getMonthRange(selectedYear, selectedMonth);
+        return {
+          preset: 'this-month',
+          startDate: s,
+          endDate: e,
+          label: format(new Date(selectedYear, selectedMonth - 1, 1), 'MMMM yyyy'),
+        };
+      }
+    }
+  }, [dateRangePreset, selectedMonth, selectedYear, customStartDate, customEndDate]);
 
   // ═══════════════════════════════════════════════════════════════════════
   // DATA FETCHING
@@ -653,36 +766,109 @@ function setLocal<T>(key: string, data: T) {
     [user, categories, accounts, recalculateAccountBalance, refreshData, broadcastDataChange, syncWithCloud, addNotification]
   );
 
+  const restoreTransaction = useCallback(
+    async (txn: Transaction) => {
+      if (!user) throw new Error('Not authenticated');
+
+      const txns = getLocal<Transaction[]>('transactions', INITIAL_TRANSACTIONS);
+      if (txns.some((t) => t.id === txn.id)) {
+        return;
+      }
+
+      const restored: Transaction = {
+        ...txn,
+        updated_at: new Date().toISOString(),
+      };
+      txns.unshift(restored);
+      setLocal('transactions', txns);
+
+      if (txn.account_id) await recalculateAccountBalance(txn.account_id);
+      if (txn.to_account_id) await recalculateAccountBalance(txn.to_account_id);
+
+      await refreshData();
+      broadcastDataChange();
+      syncWithCloud();
+
+      addNotification({
+        type: txn.type === 'income' ? 'income_added' : txn.type === 'transfer' ? 'transfer_added' : 'expense_added',
+        title: 'Transaction Restored / লেনদেন পুনরুদ্ধার করা হয়েছে',
+        description: txn.description || 'Restored transaction',
+        amount: Number(txn.amount),
+        category: txn.category?.name,
+        account: txn.account?.name,
+      });
+
+      toast.success('লেনদেন সফলভাবে পুনরুদ্ধার করা হয়েছে / Restored');
+    },
+    [user, recalculateAccountBalance, refreshData, broadcastDataChange, syncWithCloud, addNotification]
+  );
+
   const deleteTransaction = useCallback(
     async (id: string) => {
       if (!user) throw new Error('Not authenticated');
 
       const txns = getLocal<Transaction[]>('transactions', INITIAL_TRANSACTIONS);
       const oldTxn = txns.find((t) => t.id === id);
+      if (!oldTxn) return;
+
       const filtered = txns.filter((t) => t.id !== id);
       setLocal('transactions', filtered);
 
-      if (oldTxn?.account_id) await recalculateAccountBalance(oldTxn.account_id);
-      if (oldTxn?.to_account_id) await recalculateAccountBalance(oldTxn.to_account_id);
+      if (oldTxn.account_id) await recalculateAccountBalance(oldTxn.account_id);
+      if (oldTxn.to_account_id) await recalculateAccountBalance(oldTxn.to_account_id);
 
       await refreshData();
       broadcastDataChange();
       syncWithCloud();
 
-      if (oldTxn) {
-        addNotification({
-          type: oldTxn.type === 'income' ? 'income_deleted' : 'expense_deleted',
-          title: oldTxn.type === 'income' ? 'Income Deleted' : 'Expense Deleted',
-          description: oldTxn.description || 'Transaction deleted',
-          amount: Number(oldTxn.amount),
-          category: oldTxn.category?.name,
-          account: oldTxn.account?.name,
-        });
-      }
+      addNotification({
+        type: oldTxn.type === 'income' ? 'income_deleted' : 'expense_deleted',
+        title: oldTxn.type === 'income' ? 'Income Deleted' : 'Expense Deleted',
+        description: oldTxn.description || 'Transaction deleted',
+        amount: Number(oldTxn.amount),
+        category: oldTxn.category?.name,
+        account: oldTxn.account?.name,
+      });
 
-      toast.success('Transaction deleted');
+      // Interactive 7-second Undo Toast
+      toast(
+        (t) => (
+          <div className="flex items-center justify-between gap-3 w-full py-0.5">
+            <div className="flex flex-col text-xs leading-tight">
+              <span className="font-semibold text-white">
+                {oldTxn.description || 'Transaction'} মুছে ফেলা হয়েছে
+              </span>
+              <span className="text-gray-300">
+                ৳{Number(oldTxn.amount || 0).toLocaleString()} ({oldTxn.type})
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                toast.dismiss(t.id);
+                await restoreTransaction(oldTxn);
+              }}
+              className="rounded-lg bg-teal-500 hover:bg-teal-400 px-3 py-1.5 text-xs font-bold text-white shadow-md transition-all active:scale-95"
+            >
+              Undo / ফিরিয়ে নিন
+            </button>
+          </div>
+        ),
+        {
+          duration: 7000,
+          icon: '🗑️',
+          style: {
+            background: '#1e293b',
+            color: '#ffffff',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
+            borderRadius: '16px',
+            padding: '12px 16px',
+            maxWidth: '420px',
+          },
+        }
+      );
     },
-    [user, recalculateAccountBalance, refreshData, broadcastDataChange, syncWithCloud, addNotification]
+    [user, recalculateAccountBalance, refreshData, broadcastDataChange, syncWithCloud, addNotification, restoreTransaction]
   );
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -1334,24 +1520,36 @@ function setLocal<T>(key: string, data: T) {
     }
   }, [user, refreshData, broadcastDataChange, addNotification]);
 
+  // Date range filtered transactions
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter((t) => {
+      const txnDate = t.date.split('T')[0];
+      return (
+        txnDate >= effectiveDateRange.startDate &&
+        txnDate <= effectiveDateRange.endDate
+      );
+    });
+  }, [transactions, effectiveDateRange]);
+
   // ═══════════════════════════════════════════════════════════════════════
-  // FINANCIAL SUMMARY (computed from selected month/year)
+  // FINANCIAL SUMMARY (computed from effectiveDateRange & accounts)
   // ═══════════════════════════════════════════════════════════════════════
 
   const financialSummary = useMemo<FinancialSummary>(() => {
-    const [startDate, endDate] = getMonthRange(selectedYear, selectedMonth);
+    const startDate = effectiveDateRange.startDate;
+    const endDate = effectiveDateRange.endDate;
 
-    // Current month transactions
-    const monthTxns = transactions.filter((t) => {
+    // Current period transactions based on effective date range
+    const periodTxns = transactions.filter((t) => {
       const txnDate = t.date.split('T')[0];
       return txnDate >= startDate && txnDate <= endDate;
     });
 
-    const totalIncome = calculateTotalIncome(monthTxns);
-    const totalExpenses = calculateTotalExpenses(monthTxns);
+    const totalIncome = calculateTotalIncome(periodTxns);
+    const totalExpenses = calculateTotalExpenses(periodTxns);
     const netCashFlow = calculateNetCashFlow(totalIncome, totalExpenses);
 
-    // Previous month
+    // Previous month (for comparison badges)
     const prevMonth = selectedMonth === 1 ? 12 : selectedMonth - 1;
     const prevYear = selectedMonth === 1 ? selectedYear - 1 : selectedYear;
     const [prevStartDate, prevEndDate] = getMonthRange(prevYear, prevMonth);
@@ -1365,7 +1563,7 @@ function setLocal<T>(key: string, data: T) {
     const prevMonthExpenses = calculateTotalExpenses(prevMonthTxns);
     const prevMonthCashFlow = calculateNetCashFlow(prevMonthIncome, prevMonthExpenses);
 
-    // Available balance: sum of all active account balances
+    // Available balance: sum of all active account balances (UNTOUCHED by date filter!)
     const availableBalance = accounts
       .filter((a) => a.is_active)
       .reduce((sum, a) => sum + Number(a.current_balance), 0);
@@ -1387,7 +1585,7 @@ function setLocal<T>(key: string, data: T) {
       })
       .reduce((sum, b) => {
         // Calculate spent for this budget's category in the selected period
-        const budgetExpenses = monthTxns
+        const budgetExpenses = periodTxns
           .filter(
             (t) =>
               t.type === 'expense' &&
@@ -1409,7 +1607,7 @@ function setLocal<T>(key: string, data: T) {
       prevMonthExpenses,
       prevMonthCashFlow,
     };
-  }, [transactions, accounts, budgets, savingsGoals, selectedMonth, selectedYear]);
+  }, [transactions, accounts, budgets, savingsGoals, effectiveDateRange, selectedMonth, selectedYear]);
 
   // ═══════════════════════════════════════════════════════════════════════
   // CONTEXT VALUE
@@ -1430,12 +1628,22 @@ function setLocal<T>(key: string, data: T) {
       selectedYear,
       setSelectedMonth,
       setSelectedYear,
+
+      // Date Range Filtering
+      dateRangePreset,
+      customStartDate,
+      customEndDate,
+      effectiveDateRange,
+      setDateRangePreset,
+      filteredTransactions,
+
       financialSummary,
 
       // Transaction CRUD
       addTransaction,
       updateTransaction,
       deleteTransaction,
+      restoreTransaction,
 
       // Account CRUD
       addAccount,
@@ -1487,10 +1695,17 @@ function setLocal<T>(key: string, data: T) {
       error,
       selectedMonth,
       selectedYear,
+      dateRangePreset,
+      customStartDate,
+      customEndDate,
+      effectiveDateRange,
+      setDateRangePreset,
+      filteredTransactions,
       financialSummary,
       addTransaction,
       updateTransaction,
       deleteTransaction,
+      restoreTransaction,
       addAccount,
       updateAccount,
       deleteAccount,

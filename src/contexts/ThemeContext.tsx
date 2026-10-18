@@ -3,14 +3,7 @@ import toast from 'react-hot-toast';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-export type BuiltInTheme =
-  | 'classic'
-  | 'one-ui-light'
-  | 'one-ui-amoled'
-  | 'ocean-blue'
-  | 'pastel-premium'
-  | 'minimal-mono'
-  | 'ios-glass';
+export type BuiltInTheme = 'basic' | 'iphone' | 'one-ui';
 
 export type LayoutDensity = 'compact' | 'comfortable' | 'spacious';
 export type FontSize = 'small' | 'normal' | 'large';
@@ -30,80 +23,36 @@ export interface ThemeMeta {
 
 export const BUILT_IN_THEMES: ThemeMeta[] = [
   {
-    id: 'classic',
-    nameEn: 'Classic Original',
-    nameBn: 'ক্লাসিক অরিজিনাল',
-    descriptionEn: 'The original clean teal & slate aesthetic with classic balance.',
-    descriptionBn: 'আসল টিল ও স্লেট ডিজাইন—পূর্বে যা ছিল তা সম্পূর্ণ সংরক্ষিত।',
-    badge: 'Theme 1 • Original',
+    id: 'basic',
+    nameEn: 'Basic Theme',
+    nameBn: 'বেসিক থিম',
+    descriptionEn: 'Clean, lightweight, and responsive layout with classic balance and high speed.',
+    descriptionBn: 'পরিচ্ছন্ন, হালকা ও দ্রুততম ইন্টারফেস—স্বাভাবিক ও নির্ভরযোগ্য ডিজাইন।',
+    badge: 'Theme 1 • Clean & Fast',
     accentColor: '#14b8a6',
     surfaceColor: '#ffffff',
     isDarkDefault: false,
   },
   {
-    id: 'one-ui-light',
-    nameEn: 'Samsung One UI Light',
-    nameBn: 'স্যামসাং ওয়ান ইউআই লাইট',
-    descriptionEn: 'Crisp white surfaces, Samsung One UI signature blue, and rounded squircle cards.',
-    descriptionBn: 'সাদা ও হালকা ধূসর সারফেস, স্যামসাংয়ের স্বাক্ষর ব্লু এবং রাউন্ডেড কার্ড।',
-    badge: 'Theme 2 • One UI',
-    accentColor: '#0c66e4',
-    surfaceColor: '#f7f9fc',
-    isDarkDefault: false,
-  },
-  {
-    id: 'one-ui-amoled',
-    nameEn: 'Samsung One UI AMOLED Dark',
-    nameBn: 'স্যামসাং ওয়ান ইউআই এমোলেড ডার্ক',
-    descriptionEn: 'Deep pure-black (#000000) AMOLED surfaces with vivid electric blue accents.',
-    descriptionBn: 'সম্পূর্ণ নিখুঁত কালো ব্যাকগ্রাউন্ড—ব্যাটারি সেভিং ও চোখে আরামদায়ক।',
-    badge: 'Theme 3 • AMOLED',
-    accentColor: '#2680eb',
-    surfaceColor: '#101010',
-    isDarkDefault: true,
-  },
-  {
-    id: 'ocean-blue',
-    nameEn: 'Ocean Blue Premium',
-    nameBn: 'ওশান ব্লু প্রিমিয়াম',
-    descriptionEn: 'Deep maritime navy, oceanic gradients, and vivid cyan highlights.',
-    descriptionBn: 'গভীর সমুদ্রের নেভি ব্লু ও সায়ান হাইলাইটসহ আকর্ষণীয় ফিন্যান্সিয়াল লুক।',
-    badge: 'Theme 4 • Ocean',
-    accentColor: '#0284c7',
-    surfaceColor: '#0f172a',
-    isDarkDefault: true,
-  },
-  {
-    id: 'pastel-premium',
-    nameEn: 'Pastel Premium',
-    nameBn: 'প্যাস্টেল প্রিমিয়াম',
-    descriptionEn: 'Soft lavender, mint, and blush accents on soothing clean surfaces.',
-    descriptionBn: 'ল্যাভেন্ডার, মিন্ট ও সফট পিংক প্যালেট—শান্ত ও দৃষ্টি-বান্ধব ইন্টারফেস।',
-    badge: 'Theme 5 • Pastel',
-    accentColor: '#8b5cf6',
-    surfaceColor: '#faf8ff',
-    isDarkDefault: false,
-  },
-  {
-    id: 'minimal-mono',
-    nameEn: 'Minimal Monochrome',
-    nameBn: 'মিনিমাল মনোক্রোম',
-    descriptionEn: 'Distraction-free high-contrast black, white, and neutral grays.',
-    descriptionBn: 'সম্পূর্ণ নিউট্রাল ব্ল্যাক-অ্যান্ড-হোয়াইট—ফোকাস ও প্রডাক্টিভিটির জন্য সেরা।',
-    badge: 'Theme 6 • Monochrome',
-    accentColor: '#18181b',
-    surfaceColor: '#ffffff',
-    isDarkDefault: false,
-  },
-  {
-    id: 'ios-glass',
-    nameEn: 'Apple iOS 27-Inspired',
-    nameBn: 'অ্যাপল আইওএস গ্লাস',
-    descriptionEn: 'Frosted glassmorphism, dynamic blur, specular borders, and Cupertino elegance.',
-    descriptionBn: 'ফ্রস্টেড গ্লাস, ডায়নামিক ব্লার ও প্রিমিয়াম আইওএস স্টাইলের কাঁচের এফেক্ট।',
-    badge: 'Theme 7 • Glass',
+    id: 'iphone',
+    nameEn: 'iPhone Liquid Glass (iOS 27)',
+    nameBn: 'আইফোন লিকুইড গ্লাস',
+    descriptionEn: 'Apple-inspired translucent liquid glass surfaces, dynamic backdrop blur, specular borders, and refined depth.',
+    descriptionBn: 'অ্যাপল-অনুপ্রাণিত লিকুইড গ্লাস, ডায়নামিক ব্লার ও প্রিমিয়াম কাঁচের রিফ্লেকশন।',
+    badge: 'Theme 2 • Liquid Glass',
     accentColor: '#0071e3',
     surfaceColor: '#ffffff90',
+    isDarkDefault: false,
+  },
+  {
+    id: 'one-ui',
+    nameEn: 'Samsung One UI',
+    nameBn: 'স্যামসাং ওয়ান ইউআই',
+    descriptionEn: 'Samsung signature electric blue, squircle rounded cards, ergonomic spacing, and high contrast.',
+    descriptionBn: 'স্যামসাং স্কোয়ার্কল রাউন্ডেড কার্ড, আরামদায়ক বাটন ও পরিষ্কার স্পেসিং।',
+    badge: 'Theme 3 • One UI',
+    accentColor: '#0c66e4',
+    surfaceColor: '#f7f9fc',
     isDarkDefault: false,
   },
 ];
@@ -173,6 +122,13 @@ async function hashPin(pin: string): Promise<string> {
   return String(h);
 }
 
+function normalizeThemePreset(saved: string | null): BuiltInTheme {
+  if (saved === 'basic' || saved === 'classic') return 'basic';
+  if (saved === 'iphone' || saved === 'ios-glass') return 'iphone';
+  if (saved === 'one-ui' || saved === 'one-ui-light' || saved === 'one-ui-amoled') return 'one-ui';
+  return 'basic';
+}
+
 function getSystemTheme(): 'light' | 'dark' {
   if (typeof window !== 'undefined' && window.matchMedia) {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
@@ -194,13 +150,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return 'system';
   });
 
-  // 2. 7 Built-In Theme Presets
+  // 2. 3 Built-In Theme Presets (Basic, iPhone Liquid Glass, Samsung One UI)
   const [activeTheme, setActiveThemeState] = useState<BuiltInTheme>(() => {
     try {
-      const stored = localStorage.getItem(ACTIVE_PRESET_KEY) as BuiltInTheme;
-      if (BUILT_IN_THEMES.some((t) => t.id === stored)) return stored;
+      const stored = localStorage.getItem(ACTIVE_PRESET_KEY);
+      return normalizeThemePreset(stored);
     } catch {}
-    return 'classic';
+    return 'basic';
   });
 
   // 3. Layout Density
@@ -257,11 +213,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   // Resolved dark/light
   const resolvedTheme: 'light' | 'dark' =
-    activeTheme === 'one-ui-amoled' || activeTheme === 'ocean-blue'
-      ? 'dark'
-      : activeTheme === 'one-ui-light' || activeTheme === 'pastel-premium'
-      ? 'light'
-      : theme === 'system'
+    theme === 'system'
       ? getSystemTheme()
       : theme;
 
@@ -384,13 +336,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [isPinEnabled]);
 
   const restoreDefaultAppearance = useCallback(() => {
-    setActiveTheme('classic');
+    setActiveTheme('basic');
     setTheme('system');
     setDensity('comfortable');
     setFontSize('normal');
     setCardRadius('rounded');
     setIsPrivacyBlurEnabled(false);
-    toast.success('ক্লাসিক অরিজিনাল থিম ও অ্যাপিয়ারেন্স পুনরুদ্ধার করা হয়েছে');
+    toast.success('বেসিক থিম ও অ্যাপিয়ারেন্স পুনরুদ্ধার করা হয়েছে');
   }, [setActiveTheme, setTheme, setDensity, setFontSize, setCardRadius]);
 
   // ─── Apply to DOM Root ──────────────────────────────────────────────────────

@@ -49,7 +49,6 @@ export function TransactionList({ transactions, onAddClick }: TransactionListPro
     try {
       setIsDeleting(true);
       await deleteTransaction(deleteId);
-      toast.success('Transaction deleted');
     } catch {
       toast.error('Failed to delete transaction');
     } finally {

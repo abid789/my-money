@@ -4,7 +4,7 @@ import { useData } from '@/contexts/DataContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { getGreeting, formatDate } from '@/lib/utils';
-import { MonthSelector } from '@/components/dashboard/MonthSelector';
+import { DateRangeSelector } from '@/components/dashboard/DateRangeSelector';
 import { SmartDashboard } from '@/components/dashboard/SmartDashboard';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -57,8 +57,6 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          <MonthSelector />
-
           {/* Privacy Eye Toggle */}
           <button
             type="button"
@@ -106,6 +104,9 @@ export default function DashboardPage() {
           </button>
         </div>
       )}
+
+      {/* Date Range Selector with Presets & Custom Filter */}
+      <DateRangeSelector />
 
       {/* Unified Smart Cockpit Dashboard */}
       <SmartDashboard />

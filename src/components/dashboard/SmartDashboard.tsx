@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '@/contexts/DataContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -15,6 +15,7 @@ import { SpendingTrendChart } from '@/components/dashboard/SpendingTrendChart';
 import { CategoryBreakdownChart } from '@/components/dashboard/CategoryBreakdownChart';
 import { BudgetUtilizationChart } from '@/components/dashboard/BudgetUtilizationChart';
 import { RecentTransactions } from '@/components/dashboard/RecentTransactions';
+import { MiniCalculator } from '@/components/dashboard/MiniCalculator';
 import { Button } from '@/components/ui/Button';
 import {
   Wallet,
@@ -34,6 +35,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   ChevronRight,
+  Calculator,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -43,20 +45,17 @@ export function SmartDashboard() {
     accounts,
     budgets,
     transactions,
+    filteredTransactions,
     selectedMonth,
     selectedYear,
   } = useData();
   const { isPrivacyBlurEnabled, togglePrivacyBlur } = useTheme();
   const { language } = useLanguage();
   const navigate = useNavigate();
+  const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
 
-  // Current month transactions
-  const monthTransactions = useMemo(() => {
-    return transactions.filter((t) => {
-      const d = new Date(t.date);
-      return d.getMonth() + 1 === selectedMonth && d.getFullYear() === selectedYear;
-    });
-  }, [transactions, selectedMonth, selectedYear]);
+  // Active period transactions (filtered by active date range)
+  const monthTransactions = filteredTransactions || transactions;
 
   // Savings rate
   const savingsRate = useMemo(() => {
@@ -220,6 +219,16 @@ export function SmartDashboard() {
             >
               <FileBarChart className="h-4 w-4 text-teal-300" />
               <span>{language === 'bn' ? 'রিপোর্ট' : 'Reports'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsCalculatorOpen(true)}
+              className="flex items-center gap-2 rounded-2xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 px-3.5 py-2.5 text-xs font-semibold text-amber-200 shadow-sm transition-all active:scale-95"
+              title={language === 'bn' ? 'মিনি ক্যালকুলেটর খুলুন' : 'Open Mini Calculator'}
+            >
+              <Calculator className="h-4 w-4 text-amber-300" />
+              <span>{language === 'bn' ? 'হিসাব' : 'Calculator'}</span>
             </button>
           </div>
         </div>
@@ -392,6 +401,12 @@ export function SmartDashboard() {
 
       {/* ─── 9. Recent Transactions ───────────────────────────────────────── */}
       <RecentTransactions />
+
+      {/* ─── 10. Mini Calculator Modal ────────────────────────────────────── */}
+      <MiniCalculator
+        isOpen={isCalculatorOpen}
+        onClose={() => setIsCalculatorOpen(false)}
+      />
     </div>
   );
 }

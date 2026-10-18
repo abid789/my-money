@@ -19,12 +19,14 @@ const COLORS = [
 ];
 
 export function CategoryBreakdownChart() {
-  const { transactions, categories } = useData();
+  const { transactions, categories, filteredTransactions } = useData();
   const { language, t } = useLanguage();
 
+  const targetTransactions = filteredTransactions || transactions;
+
   const spendingData = useMemo(() => {
-    return calculateCategoryBreakdown(transactions, categories);
-  }, [transactions, categories]);
+    return calculateCategoryBreakdown(targetTransactions, categories);
+  }, [targetTransactions, categories]);
 
   const totalExpense = useMemo(() => {
     return spendingData.reduce((sum, item) => sum + item.amount, 0);

@@ -39,10 +39,12 @@ import {
   Sliders,
   Type,
   Square,
+  Download,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { WeeklyEmailModal } from '@/components/reports/WeeklyEmailModal';
 import { useNotifications } from '@/contexts/NotificationContext';
+import { usePwaInstall } from '@/lib/pwa';
 import {
   activeSupabaseUrl,
   isSupabaseConfigured,
@@ -56,6 +58,7 @@ type SettingsTab = 'general' | 'theme' | 'sync' | 'security' | 'all';
 export default function SettingsPage() {
   const { user, profile, updateProfile, updatePassword, deleteAccount } = useAuth();
   const { language } = useLanguage();
+  const { canInstall, isInstalled, promptInstall } = usePwaInstall();
   const [searchParams, setSearchParams] = useSearchParams();
   const urlTab = searchParams.get('tab') as SettingsTab | null;
   const [activeTab, setActiveTab] = useState<SettingsTab>(() => {
@@ -427,8 +430,8 @@ export default function SettingsPage() {
         </h1>
         <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
           {language === 'bn'
-            ? 'আপনার প্রোফাইল, ৭টি চমৎকার কালার থিম, ইমেইল রিপোর্ট ও সিকিউরিটি কন্ট্রোল পরিচালনা করুন।'
-            : 'Manage your personal profile, 7 custom themes, weekly email reports, and security controls.'}
+            ? 'আপনার প্রোফাইল, ৩টি প্রিমিয়াম থিম, ইমেইল রিপোর্ট ও সিকিউরিটি কন্ট্রোল পরিচালনা করুন।'
+            : 'Manage your personal profile, 3 premium themes, weekly email reports, and security controls.'}
         </p>
       </div>
 
@@ -461,7 +464,7 @@ export default function SettingsPage() {
           <Palette className="h-4 w-4 text-indigo-500" />
           <span>{language === 'bn' ? 'থিম' : 'Theme'}</span>
           <span className="rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-extrabold text-indigo-700 dark:bg-indigo-950/80 dark:text-indigo-300">
-            7 Themes
+            3 Themes
           </span>
         </button>
 
@@ -579,6 +582,41 @@ export default function SettingsPage() {
             </Button>
           </div>
         </form>
+
+        {/* PWA App Installation Card */}
+        <div className="rounded-2xl border border-teal-100 bg-gradient-to-r from-teal-50/50 to-emerald-50/50 p-5 dark:border-teal-900/50 dark:from-teal-950/20 dark:to-emerald-950/20">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Download className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                <h4 className="text-sm font-bold text-gray-900 dark:text-white">
+                  {language === 'bn' ? 'প্রগ্রেসিভ ওয়েব অ্যাপ (PWA) ইন্সটল' : 'Install PWA Web App'}
+                </h4>
+              </div>
+              <p className="text-xs text-gray-600 dark:text-gray-300">
+                {isInstalled
+                  ? (language === 'bn' ? '✅ অ্যাপটি ইতিমধ্যে আপনার ডিভাইসে ইনস্টল করা আছে।' : '✅ App is already installed on this device.')
+                  : (language === 'bn'
+                    ? 'আপনার মোবাইল বা পিসির হোমস্ক্রিনে অ্যাপের মতো সরাসরি ব্যবহার করতে ইনস্টল করুন।'
+                    : 'Install directly to your home screen or desktop for fast, offline-ready access.')}
+              </p>
+            </div>
+            {!isInstalled && (
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                onClick={promptInstall}
+                leftIcon={<Download className="h-4 w-4" />}
+                disabled={!canInstall}
+              >
+                {canInstall
+                  ? (language === 'bn' ? 'এখনই ইন্সটল করুন' : 'Install Now')
+                  : (language === 'bn' ? 'ব্রাউজার সাপোর্টেড' : 'App Ready')}
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
       )}
 
@@ -592,12 +630,12 @@ export default function SettingsPage() {
             </div>
             <div>
               <h2 className="text-base font-bold text-gray-900 dark:text-white">
-                {language === 'bn' ? 'অ্যাপিয়ারেন্স ও পার্সোনালাইজেশন সেন্টার' : 'Appearance & Personalization Center'}
+                {language === 'bn' ? 'অ্যাপিয়ারেন্স ও থিম সেন্টার' : 'Appearance & Theme Center'}
               </h2>
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 {language === 'bn'
-                  ? '৭টি বিল্ট-ইন থিম, লেআউট ডেনসিটি, ফন্ট স্কেলিং ও কুইক পিন সিকিউরিটি'
-                  : '7 built-in themes, layout density, font scaling, and privacy controls.'}
+                  ? '৩টি প্রিমিয়াম থিম: Basic, iPhone Liquid Glass, Samsung One UI'
+                  : '3 Premium Themes: Basic, iPhone Liquid Glass, Samsung One UI.'}
               </p>
             </div>
           </div>
@@ -613,12 +651,12 @@ export default function SettingsPage() {
           </Button>
         </div>
 
-        {/* 1. 7 Built-In Primary Themes */}
+        {/* 1. Exactly 3 Themes */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <label className="text-xs font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
               <Sparkles className="h-4 w-4 text-amber-500" />
-              <span>{language === 'bn' ? '১. বিল্ট-ইন প্রাইমারি থিম (ঠিক ৭টি প্রিমিয়াম থিম)' : '1. Built-In Primary Themes (Exactly 7 Themes)'}</span>
+              <span>{language === 'bn' ? '১. প্রিমিয়াম থিম সিলেক্টর (ঠিক ৩টি থিম)' : '1. Select Theme (Exactly 3 Themes)'}</span>
             </label>
             <span className="text-[11px] font-semibold text-teal-600 dark:text-teal-400">
               {BUILT_IN_THEMES.find((t) => t.id === activeTheme)?.nameEn}
@@ -1496,8 +1534,8 @@ export default function SettingsPage() {
         title={language === 'bn' ? 'ডিফল্ট থিম ও অ্যাপিয়ারেন্স পুনরুদ্ধার করবেন?' : 'Restore Default Appearance?'}
         message={
           language === 'bn'
-            ? 'এটি থিমটিকে ক্লাসিক অরিজিনাল, স্বাভাবিক ফন্ট ও সাধারণ রাউন্ডেড স্টাইলে ফিরিয়ে আনবে। সতর্কতা: আপনার কোনো আর্থিক হিসাব বা লেনদেন মোছা বা পরিবর্তন হবে না।'
-            : 'This will reset the theme to Classic Original, comfortable density, normal font size, and standard rounded cards. Note: Your financial transactions and accounts are NEVER affected.'
+            ? 'এটি থিমটিকে বেসিক থিম, স্বাভাবিক ফন্ট ও সাধারণ রাউন্ডেড স্টাইলে ফিরিয়ে আনবে। সতর্কতা: আপনার কোনো আর্থিক হিসাব বা লেনদেন মোছা বা পরিবর্তন হবে না।'
+            : 'This will reset the theme to Basic Theme, comfortable density, normal font size, and standard rounded cards. Note: Your financial transactions and accounts are NEVER affected.'
         }
         confirmText={language === 'bn' ? 'হ্যাঁ, ডিফল্ট ফিরিয়ে আনুন' : 'Yes, Restore Defaults'}
         cancelText={language === 'bn' ? 'বাতিল' : 'Cancel'}

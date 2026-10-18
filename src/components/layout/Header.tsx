@@ -32,7 +32,9 @@ import {
   EyeOff,
   Lock,
   Palette,
+  Download,
 } from 'lucide-react';
+import { usePwaInstall } from '@/lib/pwa';
 
 const routeTitles: Record<string, { en: string; bn: string }> = {
   '/dashboard': { en: 'Dashboard', bn: 'ড্যাশবোর্ড' },
@@ -69,6 +71,7 @@ export function Header({ onToggleMobileSidebar }: HeaderProps) {
   } = useTheme();
   const { language, toggleLanguage, t } = useLanguage();
   const { unreadCount } = useNotifications();
+  const { canInstall, promptInstall } = usePwaInstall();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showSetupModal, setShowSetupModal] = useState(false);
@@ -239,6 +242,19 @@ export function Header({ onToggleMobileSidebar }: HeaderProps) {
             </button>
           )}
 
+          {/* PWA Install Button */}
+          {canInstall && (
+            <button
+              type="button"
+              onClick={promptInstall}
+              className="flex items-center gap-1.5 rounded-lg bg-teal-500/10 hover:bg-teal-500/20 text-teal-600 dark:text-teal-400 border border-teal-500/30 px-2.5 py-1.5 text-xs font-semibold transition-all shadow-xs active:scale-95"
+              title={language === 'bn' ? 'অ্যাপ ইন্সটল করুন' : 'Install PWA App'}
+            >
+              <Download className="h-4 w-4" />
+              <span className="hidden sm:inline">{language === 'bn' ? 'ইন্সটল' : 'Install'}</span>
+            </button>
+          )}
+
           {/* Quick add button - hidden on mobile (they have the FAB) */}
           <button
             onClick={() => navigate('/add-transaction')}
@@ -335,6 +351,18 @@ export function Header({ onToggleMobileSidebar }: HeaderProps) {
                     >
                       <Lock className="h-4 w-4" />
                       {language === 'bn' ? 'কুইক পিন দিয়ে লক করুন' : 'Lock App (Quick PIN)'}
+                    </button>
+                  )}
+                  {canInstall && (
+                    <button
+                      onClick={() => {
+                        setShowUserMenu(false);
+                        promptInstall();
+                      }}
+                      className="flex w-full items-center gap-3 px-4 py-2 text-sm text-teal-600 font-medium transition-colors hover:bg-teal-50 dark:text-teal-400 dark:hover:bg-teal-950/40"
+                    >
+                      <Download className="h-4 w-4" />
+                      {language === 'bn' ? 'হোম স্ক্রিনে অ্যাপ ইন্সটল' : 'Install PWA App'}
                     </button>
                   )}
                 </div>

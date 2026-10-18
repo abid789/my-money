@@ -33,7 +33,6 @@ export function RecentTransactions() {
     try {
       setIsDeleting(true);
       await deleteTransaction(deleteId);
-      toast.success(language === 'bn' ? 'লেনদেন মুছে ফেলা হয়েছে' : 'Transaction deleted');
     } catch {
       toast.error(language === 'bn' ? 'মুছে ফেলতে সমস্যা হয়েছে' : 'Failed to delete transaction');
     } finally {
