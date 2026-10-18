@@ -6,6 +6,7 @@ import { Header } from '@/components/layout/Header';
 import { MobileQuickAddFab } from '@/components/layout/MobileQuickAddFab';
 import { QuickPinOverlay } from '@/components/auth/QuickPinOverlay';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+import { UpdatePrompt } from '@/components/pwa/UpdatePrompt';
 import clsx from 'clsx';
 
 export function AppLayout() {
@@ -79,6 +80,9 @@ export function AppLayout() {
 
       {/* Quick PIN Privacy Lock Screen */}
       <QuickPinOverlay />
+
+      {/* PWA 1-Click Update Prompt Notification */}
+      <UpdatePrompt />
     </div>
   );
 }

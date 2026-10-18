@@ -1,49 +1,66 @@
-// My Money — Lightweight Static Shell Service Worker
-const CACHE_NAME = 'my-money-shell-v2';
+// My Money — Production PWA Service Worker with Auto-Update Support
+const APP_VERSION = 'v3.3.0';
+const CACHE_NAME = `my-money-shell-${APP_VERSION}`;
+
 const STATIC_SHELL_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
   '/icons/icon-192.svg',
   '/icons/icon-512.svg',
 ];
 
-// Install: Cache static shell assets
+// 1. Install: Pre-cache static shell assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(STATIC_SHELL_ASSETS);
-    }).then(() => self.skipWaiting())
+    }).then(() => {
+      // Allow new service worker to take over immediately when requested
+      return self.skipWaiting();
+    })
   );
 });
 
-// Activate: Clean up previous caches and take control
+// 2. Activate: Clear out old version caches and claim clients immediately
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
-          if (key !== CACHE_NAME) {
+          if (key.startsWith('my-money-') && key !== CACHE_NAME) {
+            console.log('[SW] Invaliding old cache version:', key);
             return caches.delete(key);
           }
         })
       );
-    }).then(() => self.clients.claim())
+    }).then(() => {
+      return self.clients.claim();
+    })
   );
 });
 
-// Fetch: Static asset caching with strict API bypass
+// 3. Message handler: Allow frontend to command instant skipWaiting for 1-click update
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
+// 4. Fetch: Safe caching strategy with strict API/Database bypass
 self.addEventListener('fetch', (event) => {
   const request = event.request;
 
-  // 1. Never intercept non-GET requests (mutations, uploads, etc.)
+  // Never intercept non-GET requests (POST, PUT, DELETE, PATCH)
   if (request.method !== 'GET') {
     return;
   }
 
   const url = new URL(request.url);
 
-  // 2. CRITICAL CONSTRAINT: Never cache API endpoints, Supabase database, or Auth requests
+  // STRICT CONSTRAINT: Never cache API requests, Supabase database, or Auth endpoints
   if (
     url.pathname.startsWith('/api/') ||
     url.hostname.includes('supabase.co') ||
@@ -53,17 +70,29 @@ self.addEventListener('fetch', (event) => {
     return; // Pass through to network directly
   }
 
-  // 3. For navigation requests (SPA HTML), use network with fallback to cached shell
+  // Navigation requests (HTML pages): NETWORK FIRST with cache fallback
+  // This guarantees online users immediately get the newest HTML containing new asset hashes!
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request).catch(() => {
-        return caches.match('/index.html') || caches.match('/');
-      })
+      fetch(request, { cache: 'no-cache' })
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(request, responseToCache);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(() => {
+          // Offline fallback
+          return caches.match('/index.html') || caches.match('/');
+        })
     );
     return;
   }
 
-  // 4. For static bundled assets (js, css, images, fonts), cache-first with network fallback
+  // Static assets (hashed js, css, icons, fonts): Cache-first with network fallback
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
       if (cachedResponse) {
@@ -82,7 +111,6 @@ self.addEventListener('fetch', (event) => {
         }
         return networkResponse;
       }).catch(() => {
-        // Offline fallback for assets
         return cachedResponse;
       });
     })
