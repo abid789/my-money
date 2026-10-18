@@ -2,6 +2,22 @@ import { useEffect, useState } from 'react';
 
 // Store the deferred install prompt globally
 let deferredPrompt: any = null;
+const listeners = new Set<() => void>();
+
+// Capture beforeinstallprompt immediately at top-level
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeinstallprompt', (e: Event) => {
+    // Prevent mini-infobar from appearing automatically on mobile
+    e.preventDefault();
+    deferredPrompt = e;
+    listeners.forEach((fn) => fn());
+  });
+
+  window.addEventListener('appinstalled', () => {
+    deferredPrompt = null;
+    listeners.forEach((fn) => fn());
+  });
+}
 
 // Register Service Worker
 export function registerServiceWorker() {
@@ -35,7 +51,7 @@ export function registerServiceWorker() {
 
 // Custom hook to detect PWA installability and trigger install prompt
 export function usePwaInstall() {
-  const [canInstall, setCanInstall] = useState(false);
+  const [canInstall, setCanInstall] = useState(!!deferredPrompt);
   const [isInstalled, setIsInstalled] = useState(false);
 
   useEffect(() => {
@@ -49,8 +65,14 @@ export function usePwaInstall() {
       return;
     }
 
+    const updateState = () => {
+      setCanInstall(!!deferredPrompt);
+    };
+
+    updateState();
+    listeners.add(updateState);
+
     const handleBeforeInstallPrompt = (e: Event) => {
-      // Prevent automatic mini-infobar on mobile
       e.preventDefault();
       deferredPrompt = e;
       setCanInstall(true);
@@ -66,19 +88,24 @@ export function usePwaInstall() {
     window.addEventListener('appinstalled', handleAppInstalled);
 
     return () => {
+      listeners.delete(updateState);
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
   }, []);
 
-  const promptInstall = async () => {
+  const promptInstall = async (): Promise<boolean> => {
     if (!deferredPrompt) return false;
 
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    deferredPrompt = null;
-    setCanInstall(false);
-    return outcome === 'accepted';
+    try {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      deferredPrompt = null;
+      setCanInstall(false);
+      return outcome === 'accepted';
+    } catch {
+      return false;
+    }
   };
 
   return { canInstall, isInstalled, promptInstall };

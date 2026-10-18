@@ -20,6 +20,8 @@ import {
   Download,
   X,
 } from 'lucide-react';
+import { usePwaInstall } from '@/lib/pwa';
+import { InstallAppModal } from '@/components/pwa/InstallAppModal';
 
 const mainTabs = [
   { path: '/dashboard', key: 'nav.dashboard', icon: LayoutDashboard },
@@ -45,6 +47,19 @@ export function MobileNav() {
   const [showMore, setShowMore] = useState(false);
   const { t, language } = useLanguage();
   const location = useLocation();
+  const { canInstall, isInstalled, promptInstall } = usePwaInstall();
+  const [showInstallModal, setShowInstallModal] = useState(false);
+
+  const handleInstallClick = async () => {
+    if (canInstall) {
+      const accepted = await promptInstall();
+      if (!accepted) {
+        setShowInstallModal(true);
+      }
+    } else {
+      setShowInstallModal(true);
+    }
+  };
 
   // Close "more" menu on route change
   useEffect(() => {
@@ -92,6 +107,37 @@ export function MobileNav() {
                 <X className="h-5 w-5" />
               </button>
             </div>
+
+            {/* PWA App Download Card for Mobile Users */}
+            {!isInstalled && (
+              <div className="px-4 pb-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleClose();
+                    handleInstallClick();
+                  }}
+                  className="flex w-full items-center justify-between rounded-2xl border border-teal-200 bg-gradient-to-r from-teal-50 via-emerald-50 to-teal-50 p-3 shadow-xs dark:border-teal-900/60 dark:from-teal-950/40 dark:via-emerald-950/30 dark:to-teal-950/40 text-left transition-all active:scale-98"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-500 text-white shadow-sm">
+                      <Download className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-gray-900 dark:text-white">
+                        {language === 'bn' ? 'মাই মানি অ্যাপ ডাউনলোড' : 'Download My Money App'}
+                      </p>
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                        {language === 'bn' ? 'হোমস্ক্রিনে ১-ক্লিকে ইনস্টল করুন' : 'Install on your Home Screen'}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="rounded-lg bg-teal-500 px-2.5 py-1 text-[11px] font-bold text-white shadow-xs">
+                    {language === 'bn' ? 'ইনস্টল' : 'Install'}
+                  </span>
+                </button>
+              </div>
+            )}
 
             {/* Menu items */}
             <nav className="scrollbar-thin max-h-[60vh] overflow-y-auto px-2 pb-4">
@@ -239,6 +285,11 @@ export function MobileNav() {
           padding-bottom: env(safe-area-inset-bottom, 0px);
         }
       `}</style>
+
+      <InstallAppModal
+        isOpen={showInstallModal}
+        onClose={() => setShowInstallModal(false)}
+      />
     </>
   );
 }

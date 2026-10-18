@@ -24,6 +24,8 @@ import {
   LogOut,
   LogIn,
 } from 'lucide-react';
+import { usePwaInstall } from '@/lib/pwa';
+import { InstallAppModal } from '@/components/pwa/InstallAppModal';
 
 const navItems = [
   { path: '/dashboard', key: 'nav.dashboard', icon: LayoutDashboard },
@@ -49,6 +51,19 @@ export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
+  const { canInstall, isInstalled, promptInstall } = usePwaInstall();
+  const [showInstallModal, setShowInstallModal] = useState(false);
+
+  const handleInstallClick = async () => {
+    if (canInstall) {
+      const accepted = await promptInstall();
+      if (!accepted) {
+        setShowInstallModal(true);
+      }
+    } else {
+      setShowInstallModal(true);
+    }
+  };
 
   // Persist collapsed state
   useEffect(() => {
@@ -134,6 +149,24 @@ export function Sidebar() {
         </ul>
       </nav>
 
+      {/* PWA Download / Install Button */}
+      {!isInstalled && (
+        <div className="border-t border-gray-200 p-2.5 dark:border-gray-700">
+          <button
+            type="button"
+            onClick={handleInstallClick}
+            className={clsx(
+              'flex w-full items-center gap-2.5 rounded-xl bg-teal-500/10 hover:bg-teal-500/20 text-teal-700 dark:text-teal-300 border border-teal-500/30 px-3 py-2 text-xs font-bold transition-all shadow-xs active:scale-95',
+              collapsed && 'justify-center px-0'
+            )}
+            title={language === 'bn' ? 'অ্যাপ ডাউনলোড ও ইনস্টল করুন' : 'Download / Install App'}
+          >
+            <Download className="h-4 w-4 shrink-0 text-teal-600 dark:text-teal-400" />
+            {!collapsed && <span>{language === 'bn' ? 'অ্যাপ ডাউনলোড' : 'Download App'}</span>}
+          </button>
+        </div>
+      )}
+
       {/* Collapse toggle */}
       <div className="border-t border-gray-200 px-3 py-2 dark:border-gray-700">
         <button
@@ -210,6 +243,11 @@ export function Sidebar() {
           </div>
         )}
       </div>
+
+      <InstallAppModal
+        isOpen={showInstallModal}
+        onClose={() => setShowInstallModal(false)}
+      />
     </aside>
   );
 }

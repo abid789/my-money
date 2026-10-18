@@ -45,6 +45,7 @@ import toast from 'react-hot-toast';
 import { WeeklyEmailModal } from '@/components/reports/WeeklyEmailModal';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { usePwaInstall } from '@/lib/pwa';
+import { InstallAppModal } from '@/components/pwa/InstallAppModal';
 import {
   activeSupabaseUrl,
   isSupabaseConfigured,
@@ -59,6 +60,18 @@ export default function SettingsPage() {
   const { user, profile, updateProfile, updatePassword, deleteAccount } = useAuth();
   const { language } = useLanguage();
   const { canInstall, isInstalled, promptInstall } = usePwaInstall();
+  const [showInstallModal, setShowInstallModal] = useState(false);
+
+  const handleInstallClick = async () => {
+    if (canInstall) {
+      const accepted = await promptInstall();
+      if (!accepted) {
+        setShowInstallModal(true);
+      }
+    } else {
+      setShowInstallModal(true);
+    }
+  };
   const [searchParams, setSearchParams] = useSearchParams();
   const urlTab = searchParams.get('tab') as SettingsTab | null;
   const [activeTab, setActiveTab] = useState<SettingsTab>(() => {
@@ -606,13 +619,12 @@ export default function SettingsPage() {
                 type="button"
                 variant="primary"
                 size="sm"
-                onClick={promptInstall}
+                onClick={handleInstallClick}
                 leftIcon={<Download className="h-4 w-4" />}
-                disabled={!canInstall}
               >
                 {canInstall
                   ? (language === 'bn' ? 'এখনই ইন্সটল করুন' : 'Install Now')
-                  : (language === 'bn' ? 'ব্রাউজার সাপোর্টেড' : 'App Ready')}
+                  : (language === 'bn' ? 'অ্যাপ ডাউনলোড ও ইনস্টল গাইড' : 'Install / Download Guide')}
               </Button>
             )}
           </div>
@@ -1545,6 +1557,11 @@ export default function SettingsPage() {
         isOpen={weeklyModalOpen}
         onClose={() => setWeeklyModalOpen(false)}
         defaultEmail={emailConfig.configuredRecipient || 'abidasset@gmail.com'}
+      />
+
+      <InstallAppModal
+        isOpen={showInstallModal}
+        onClose={() => setShowInstallModal(false)}
       />
     </div>
   );

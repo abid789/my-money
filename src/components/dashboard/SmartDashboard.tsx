@@ -38,8 +38,11 @@ import {
   CheckCircle2,
   ChevronRight,
   Calculator,
+  Download,
 } from 'lucide-react';
 import clsx from 'clsx';
+import { usePwaInstall } from '@/lib/pwa';
+import { InstallAppModal } from '@/components/pwa/InstallAppModal';
 
 export function SmartDashboard() {
   const {
@@ -56,6 +59,19 @@ export function SmartDashboard() {
   const { language } = useLanguage();
   const navigate = useNavigate();
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
+  const { canInstall, isInstalled, promptInstall } = usePwaInstall();
+  const [showInstallModal, setShowInstallModal] = useState(false);
+
+  const handleInstallClick = async () => {
+    if (canInstall) {
+      const accepted = await promptInstall();
+      if (!accepted) {
+        setShowInstallModal(true);
+      }
+    } else {
+      setShowInstallModal(true);
+    }
+  };
 
   // Active period transactions (filtered by active date range)
   const monthTransactions = filteredTransactions || transactions;
@@ -233,6 +249,18 @@ export function SmartDashboard() {
               <Calculator className="h-4 w-4 text-amber-300" />
               <span>{language === 'bn' ? 'হিসাব' : 'Calculator'}</span>
             </button>
+
+            {!isInstalled && (
+              <button
+                type="button"
+                onClick={handleInstallClick}
+                className="flex items-center gap-2 rounded-2xl bg-teal-500/20 hover:bg-teal-500/30 border border-teal-400/40 px-3.5 py-2.5 text-xs font-semibold text-teal-200 shadow-sm transition-all active:scale-95"
+                title={language === 'bn' ? 'অ্যাপ ডাউনলোড করুন' : 'Download App'}
+              >
+                <Download className="h-4 w-4 text-teal-300" />
+                <span>{language === 'bn' ? 'অ্যাপ ডাউনলোড' : 'Download App'}</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -596,6 +624,11 @@ export function SmartDashboard() {
       <MiniCalculator
         isOpen={isCalculatorOpen}
         onClose={() => setIsCalculatorOpen(false)}
+      />
+
+      <InstallAppModal
+        isOpen={showInstallModal}
+        onClose={() => setShowInstallModal(false)}
       />
     </div>
   );
